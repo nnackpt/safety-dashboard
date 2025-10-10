@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* ให้ทั้งหน้าไม่มีช่องว่าง และพื้นหลังหลักเป็น #09304F */
+html, body, #__next {
+  height: 100%;
+  background: #09304F;
+}
+
+้html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+}
+
+* { box-sizing: border-box; }
