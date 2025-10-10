@@ -24,15 +24,14 @@ export interface TopbarProps {
 }
 
 export default function Topbar({ onCameraSelect }: TopbarProps) {
-  const [selectedCamera, setSelectedCamera] = useState(CAMERA_OPTIONS[1]); // เปลี่ยนจาก [0] เป็น [1] = "Camera 1"
-  const [open, setOpen] = useState(false);
-  const [now, setNow] = useState<Date | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [selectedCamera, setSelectedCamera] = useState(CAMERA_OPTIONS[1])
+  const [open, setOpen] = useState(false)
+  const [now, setNow] = useState<Date | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  // เรียก onCameraSelect ตอน mount เพื่อตั้งค่า default
   useEffect(() => {
     if (onCameraSelect) {
-      onCameraSelect(CAMERA_OPTIONS[1]); // ส่งค่า "Camera 1" ไปให้ parent
+      onCameraSelect(CAMERA_OPTIONS[1])
     }
   }, []);
 
@@ -52,25 +51,24 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
   };
 
   return (
-    <div className="w-full bg-[#0B4A82] text-white flex items-center justify-between px-6 py-3">
-      {/* ซ้าย: โลโก้ + ปุ่มเลือกกล้อง */}
-      <div className="flex items-center gap-[0.9in]">
+    <div className="w-full bg-[#0B4A82] text-white flex flex-col sm:flex-row items-center justify-between px-3 sm:px-6 py-2 sm:py-3 gap-3 sm:gap-0">
+      {/* Logo , Camera Selector */}
+      <div className="flex items-center gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-[0.9in] w-full sm:w-auto justify-between sm:justify-start">
         <img
           src="logo.png"   
           alt="Autoliv"
-          className="h-10 w-[130px] object-contain"
+          className="h-8 sm:h-10 w-auto object-contain"
         />
 
-        {/* ปุ่มเลือกกล้อง */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setOpen(v => !v)}
-            className="flex items-center gap-3 bg-[#2F2F2F] text-white border border-[#CFCFCF] rounded-[2px] px-4 py-2 leading-none"
+            className="flex items-center gap-2 sm:gap-3 bg-[#2F2F2F] text-white border border-[#CFCFCF] rounded-[2px] px-3 sm:px-4 py-1.5 sm:py-2 leading-none text-sm sm:text-base"
           >
-            <CameraIcon size={20} strokeWidth={3} className="text-white" aria-hidden />
-            <span className="text-[20px]">{selectedCamera}</span>
-            <ChevronDown size={18} className="opacity-90" />
+            <CameraIcon size={16} strokeWidth={3} className="text-white sm:w-5 sm:h-5" aria-hidden />
+            <span className="text-base sm:text-lg lg:text-[20px]">{selectedCamera}</span>
+            <ChevronDown size={16} className="opacity-90 sm:w-[18px] sm:h-[18px]" />
           </button>
 
           {open && (
@@ -78,7 +76,7 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
               {CAMERA_OPTIONS.map(opt => (
                 <li key={opt}>
                   <button
-                    className={`w-full text-left px-4 py-2 hover:bg-[#3A3A3A] ${
+                    className={`w-full text-left px-3 sm:px-4 py-1.5 sm:py-2 text-sm sm:text-base hover:bg-[#3A3A3A] ${
                       selectedCamera === opt ? "bg-[#3A3A3A]" : ""
                     }`}
                     onClick={() => handleCameraChange(opt)}
@@ -92,12 +90,12 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
         </div>
       </div>
 
-      {/* ขวา: เวลาแบบเรียลไทม์ */}
-      <div className="flex items-center gap-2 text-[20px]">
-        <span className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
-          <span className="text-[#0B4A82] text-[20px]">🕒</span>
+      {/* Date and Time */}
+      <div className="flex items-center gap-2 text-sm sm:text-base lg:text-lg xl:text-[20px]">
+        <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white flex items-center justify-center">
+          <span className="text-[#0B4A82] text-base sm:text-lg lg:text-[20px]">🕒</span>
         </span>
-        <span suppressHydrationWarning>
+        <span suppressHydrationWarning className="whitespace-nowrap">
           {mounted && now ? formatDateTime(now) : ""}
         </span>
       </div>

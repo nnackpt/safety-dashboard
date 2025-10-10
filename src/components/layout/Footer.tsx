@@ -15,10 +15,8 @@ export default function Footer() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Initial fetch
     fetchCameraStatus();
 
-    // Poll every 2 seconds
     const interval = setInterval(fetchCameraStatus, 2000);
 
     return () => clearInterval(interval);
@@ -36,7 +34,6 @@ export default function Footer() {
     }
   };
 
-  // Calculate overall status
   const allCamerasActive = cameras.length > 0 && cameras.every(cam => cam.status === "active");
   const anyCameraActive = cameras.some(cam => cam.status === "active");
   
@@ -65,10 +62,10 @@ export default function Footer() {
   const overallStatus = getOverallStatus();
 
   return (
-    <footer className="w-full bg-[#2B2B2B] text-white py-3 text-xl">
-      <div className="max-w-[1200px] mx-auto px-4">
-        <div className="flex items-center justify-center gap-8">
-          <div>
+    <footer className="w-full bg-[#2B2B2B] text-white py-2 sm:py-3 text-sm sm:text-base lg:text-lg xl:text-xl">
+      <div className="max-w-[1200px] mx-auto px-3 sm:px-4">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 md:gap-6 lg:gap-8">
+          <div className="flex items-center gap-1">
             <span className="opacity-80">Camera Status :</span>{" "}
             <span 
               className={`font-semibold ${
@@ -80,7 +77,7 @@ export default function Footer() {
               {cameraStatusText}
             </span>
           </div>
-          <div>
+          <div className="flex items-center gap-1">
             <span className="opacity-80">Network :</span>{" "}
             <span 
               className={`font-semibold ${
@@ -90,7 +87,7 @@ export default function Footer() {
               {networkStatus}
             </span>
           </div>
-          <div>
+          <div className="flex items-center gap-1">
             <span className="opacity-80">Status :</span>{" "}
             <span 
               className={`font-semibold ${
