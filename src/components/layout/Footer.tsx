@@ -10,7 +10,7 @@ interface CameraStatus {
 }
 
 export default function Footer() {
-  const apiUrl = "http://localhost:8083/api";
+  const API_URL = process.env.API_URL
   const [cameras, setCameras] = useState<CameraStatus[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -24,7 +24,7 @@ export default function Footer() {
 
   const fetchCameraStatus = async () => {
     try {
-      const response = await fetch(`${apiUrl}/cameras`);
+      const response = await fetch(`${API_URL}/cameras`);
       const data = await response.json();
       setCameras(data.cameras || []);
       setIsConnected(true);

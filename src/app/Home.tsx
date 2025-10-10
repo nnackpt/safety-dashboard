@@ -30,7 +30,7 @@ interface DetectionData {
   detections: Detection[];
 }
 
-const API_URL = "http://localhost:8083/api"
+const API_URL = process.env.API_URL
 
 export default function Home() {
   const [cameras, setCameras] = useState<Camera[]>([])

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Camera as CameraIcon, ChevronDown } from "lucide-react";
+import { Camera as CameraIcon, ChevronDown, Clock } from "lucide-react";
 
 function formatDateTime(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -93,7 +93,12 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
       {/* Date and Time */}
       <div className="flex items-center gap-2 text-sm sm:text-base lg:text-lg xl:text-[20px]">
         <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white flex items-center justify-center">
-          <span className="text-[#0B4A82] text-base sm:text-lg lg:text-[20px]">🕒</span>
+          <span className="text-[#0B4A82] text-base sm:text-lg lg:text-[20px]">
+            <Clock
+              className="w-4 h-4 sm:w-5 sm:h-5 lg:w-[20px] lg:h-[20px] text-[#0B4A82]"
+              strokeWidth={2.25}
+            />
+          </span>
         </span>
         <span suppressHydrationWarning className="whitespace-nowrap">
           {mounted && now ? formatDateTime(now) : ""}
