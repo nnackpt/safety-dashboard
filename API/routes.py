@@ -274,13 +274,15 @@ async def test_database(db: Session = Depends(get_db)):
         email_count = db.query(Database.models.EmailMaster).count()
         rule_count = db.query(Database.models.RuleMaster).count()
         ticket_count = db.query(Database.models.NGTicket).count()
+        evidence_count = db.query(Database.models.NGEvidence).count()
         
         return {
             "status": "connected",
             "counts": {
                 "emails": email_count,
                 "rules": rule_count,
-                "tickets": ticket_count
+                "tickets": ticket_count,
+                "evidences": evidence_count
             }
         }
     except Exception as e:

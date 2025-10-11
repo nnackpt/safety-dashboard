@@ -2,33 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Topbar from "@/components/layout/Topbar";
-
-interface Camera {
-  id: number;
-  url: string;
-  status: string;
-  detections?: number;
-}
-
-interface CameraInfo {
-  id: number;
-  url: string;
-  status: string;
-  resolution: string;
-  detections: number;
-}
-
-interface Detection {
-  class: string;
-  confidence: number;
-  bbox: number[];
-}
-
-interface DetectionData {
-  camera_id: number;
-  count: number;
-  detections: Detection[];
-}
+import { Camera, CameraInfo, Detection, DetectionData } from "@/Types/Camera";
 
 const API_URL = process.env.API_URL
 
