@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse, FileResponse
 from pathlib import Path
 import cv2
@@ -6,6 +6,9 @@ import time
 import os
 from datetime import datetime
 from config import *
+from sqlalchemy.orm import Session
+from Database.database import get_db
+import Database.models
 
 router = APIRouter()
 
@@ -264,6 +267,24 @@ async def get_snapshot(camera_id: int, detected: bool = False, single: bool = Fa
         iter([buffer.tobytes()]), 
         media_type="image/jpeg"
     )
+
+@router.get("/api/test-db")
+async def test_database(db: Session = Depends(get_db)):
+    try:
+        email_count = db.query(Database.models.EmailMaster).count()
+        rule_count = db.query(Database.models.RuleMaster).count()
+        ticket_count = db.query(Database.models.NGTicket).count()
+        
+        return {
+            "status": "connected",
+            "counts": {
+                "emails": email_count,
+                "rules": rule_count,
+                "tickets": ticket_count
+            }
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 def create_static_routes():
     """Create static file routes"""

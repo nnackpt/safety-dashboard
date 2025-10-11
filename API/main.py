@@ -14,6 +14,8 @@ import os
 import pygame
 from config import *
 from routes import router
+from Database.database import engine, get_db
+import Database.models
 
 # ---- APP SETUP ----
 app = FastAPI(title="CCTV Camera API with Object Detection")
@@ -302,6 +304,12 @@ def play_alert_sound(camera_id):
 @app.on_event("startup")
 async def startup_event():
     """Start all camera reader threads"""
+    try:
+        with engine.connect() as conn:
+            print(f"✅ Database connected successfully to {engine.url.database}")
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        
     print(f"\n{'='*60}")
     print(f"🚀 Starting CCTV System")
     print(f"{'='*60}")
