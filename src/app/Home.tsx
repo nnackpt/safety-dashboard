@@ -57,7 +57,7 @@ export default function Home() {
     const mockDetections: { [key: number]: DetectionData } = {};
     
     displayCameras.forEach(cameraId => {
-      let mockData: Detection[] = [];
+      const mockData: Detection[] = [];
       
       // NG
       if (scenario === 'ng' || scenario === 'all') {

@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && npm run copy-static",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "copy-static": "cpx \"out/**/*\" \"API/out\" --clean"
   },
   "dependencies": {
+    "cpx": "^1.5.0",
     "lucide-react": "^0.544.0",
     "next": "15.5.0",
     "react": "19.1.0",
