@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Topbar from "@/components/layout/Topbar";
 import { Camera, CameraInfo, Detection, DetectionData } from "@/Types/Camera";
 
-const API_URL = process.env.API_URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
 
 export default function Home() {
   const [cameras, setCameras] = useState<Camera[]>([])
@@ -27,65 +27,71 @@ export default function Home() {
   })
   const shouldShowNG = hasNG || safetyViolations.length > 0
 
-  const testScenario = (scenario: 'normal' | 'ng' | 'glove' | 'shoe' | 'glasses' | 'shirt' | 'violations' | 'all') => {
-    const mockDetections: { [key: number]: DetectionData } = {};
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  // const [lastAlertTime, setLastAlertTime] = useState<{[key: number]: number}>({})
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [isPlayingAlert, setIsPlayingAlert] = useState(false)
+
+  // const testScenario = (scenario: 'normal' | 'ng' | 'glove' | 'shoe' | 'glasses' | 'shirt' | 'violations' | 'all') => {
+  //   const mockDetections: { [key: number]: DetectionData } = {};
     
-    displayCameras.forEach(cameraId => {
-      const mockData: Detection[] = [];
+  //   displayCameras.forEach(cameraId => {
+  //     const mockData: Detection[] = [];
       
-      // NG
-      if (scenario === 'ng' || scenario === 'all') {
-        mockData.push({
-          class: "NG",
-          confidence: 0.95,
-          bbox: [100, 100, 200, 200]
-        });
-      }
+  //     // NG
+  //     if (scenario === 'ng' || scenario === 'all') {
+  //       mockData.push({
+  //         class: "NG",
+  //         confidence: 0.95,
+  //         bbox: [100, 100, 200, 200]
+  //       });
+  //     }
       
-      // Individual violations
-      if (scenario === 'glove' || scenario === 'violations' || scenario === 'all') {
-        mockData.push({
-          class: "non-safety-glove",
-          confidence: 0.88,
-          bbox: [300, 150, 400, 250]
-        });
-      }
+  //     // Individual violations
+  //     if (scenario === 'glove' || scenario === 'violations' || scenario === 'all') {
+  //       mockData.push({
+  //         class: "non-safety-glove",
+  //         confidence: 0.88,
+  //         bbox: [300, 150, 400, 250]
+  //       });
+  //     }
       
-      if (scenario === 'shoe' || scenario === 'violations' || scenario === 'all') {
-        mockData.push({
-          class: "non-safety-shoe",
-          confidence: 0.92,
-          bbox: [500, 200, 600, 300]
-        });
-      }
+  //     if (scenario === 'shoe' || scenario === 'violations' || scenario === 'all') {
+  //       mockData.push({
+  //         class: "non-safety-shoe",
+  //         confidence: 0.92,
+  //         bbox: [500, 200, 600, 300]
+  //       });
+  //     }
       
-      if (scenario === 'glasses' || scenario === 'violations' || scenario === 'all') {
-        mockData.push({
-          class: "non-safety-glasses",
-          confidence: 0.85,
-          bbox: [700, 100, 800, 200]
-        });
-      }
+  //     if (scenario === 'glasses' || scenario === 'violations' || scenario === 'all') {
+  //       mockData.push({
+  //         class: "non-safety-glasses",
+  //         confidence: 0.85,
+  //         bbox: [700, 100, 800, 200]
+  //       });
+  //     }
       
-      if (scenario === 'shirt' || scenario === 'violations' || scenario === 'all') {
-        mockData.push({
-          class: "non-safety-shirt",
-          confidence: 0.90,
-          bbox: [900, 150, 1000, 250]
-        });
-      }
+  //     if (scenario === 'shirt' || scenario === 'violations' || scenario === 'all') {
+  //       mockData.push({
+  //         class: "non-safety-shirt",
+  //         confidence: 0.90,
+  //         bbox: [900, 150, 1000, 250]
+  //       });
+  //     }
       
-      mockDetections[cameraId] = {
-        camera_id: cameraId,
-        count: mockData.length,
-        detections: mockData
-      };
-    });
+  //     mockDetections[cameraId] = {
+  //       camera_id: cameraId,
+  //       count: mockData.length,
+  //       detections: mockData
+  //     };
+  //   });
     
-    setDetections(mockDetections);
-  };
+  //   setDetections(mockDetections);
+  // };
 
   // Fetch cameras list
+  
   useEffect(() => {
     fetch(`${API_URL}/cameras`)
       .then((res) => res.json())
@@ -121,6 +127,18 @@ export default function Home() {
 
     return () => clearInterval(interval);
   }, [cameras]);
+
+  useEffect(() => {
+    audioRef.current = new Audio('/emergency-alarmsiren-type.mp3')
+    audioRef.current.volume = 0.8
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [])
 
   // Handle camera selection from Topbar
   const handleCameraSelect = useCallback((cameraName: string) => {
@@ -160,24 +178,24 @@ export default function Home() {
         const detection = detections[cameraId]
         if (detection?.detections) {
           detection.detections.forEach((d: Detection) => {
-            const className = d.class.trim().toUpperCase()
+            const classifiedName = (d.classified_as || d.class).trim().toLowerCase();
             
             // Check for NG
-            if (className === "NG") {
+            if (classifiedName === "ng") {
               foundNG = true;
             }
             
             // Check for safety violations
-            if (className === "NON-SAFETY-GLOVE") {
+            if (classifiedName === "non-safety-glove") {
               violations.add("Missing Safety Gloves")
               types.glove = true;
-            } else if (className === "NON-SAFETY-SHOE") {
+            } else if (classifiedName === "non-safety-shoe") {
               violations.add("Missing Safety Shoes")
               types.shoe = true;
-            } else if (className === "NON-SAFETY-GLASSES") {
+            } else if (classifiedName === "non-safety-glasses") {
               violations.add("Missing Safety Glasses")
               types.glasses = true;
-            } else if (className === "NON-SAFETY-SHIRT") {
+            } else if (classifiedName === "non-safety-shirt") {
               violations.add("Missing Safety Vest")
               types.shirt = true;
             }
@@ -193,6 +211,65 @@ export default function Home() {
     checkDetections();
   }, [detections, displayCameras])
 
+  // useEffect(() => {
+  //   const checkForAlerts = () => {
+  //     displayCameras.forEach(cameraId => {
+  //       const detection = detections[cameraId]
+  //       if (detection?.detections) {
+  //         const hasNGorViolation = detection.detections.some((d: Detection) => {
+  //           const classifiedName = (d.classified_as || d.class).trim().toLowerCase()
+  //           return classifiedName === "ng" || classifiedName.includes("non-safety")
+  //         })
+          
+  //         if (hasNGorViolation && audioEnabled) {
+  //           const currentTime = Date.now()
+  //           const lastAlert = lastAlertTime[cameraId] || 0
+            
+  //           if (currentTime - lastAlert > 5000) {
+  //             audioRef.current?.play().catch(err => {
+  //               console.log("Audio play failed:", err)
+  //             })
+              
+  //             setLastAlertTime(prev => ({
+  //               ...prev,
+  //               [cameraId]: currentTime
+  //             }))
+  //           }
+  //         }
+  //       }
+  //     })
+  //   }
+    
+  //   checkForAlerts()
+  // }, [detections, displayCameras, audioEnabled, lastAlertTime])
+
+  useEffect(() => {
+  if (shouldShowNG && audioEnabled && !isPlayingAlert) {
+    if (audioRef.current) {
+      audioRef.current.loop = true
+      audioRef.current.play()
+        .then(() => {
+          setIsPlayingAlert(true)
+          console.log("🔊 Alert sound started")
+        })
+        .catch(err => console.log("Audio play failed:", err))
+    }
+  } else if (!shouldShowNG && isPlayingAlert) {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setIsPlayingAlert(false)
+      console.log("🔇 Alert sound stopped")
+    }
+  } else if (!audioEnabled && isPlayingAlert) {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setIsPlayingAlert(false)
+    }
+  }
+}, [shouldShowNG, audioEnabled, isPlayingAlert])
+
   // Get stream URL with single parameter
   const getStreamUrl = (cameraId: number) => {
     return `${API_URL}/camera/${cameraId}/stream/detected?single=${isSingleView}`;
@@ -200,6 +277,18 @@ export default function Home() {
 
   return (
     <div className="flex-1 bg-[#09304F] px-2 sm:px-3 pt-2 sm:pt-3 pb-0 flex flex-col overflow-hidden">
+      {/* <div className="absolute top-4 right-4 z-50">
+        <button
+          onClick={() => setAudioEnabled(!audioEnabled)}
+          className={`px-4 py-2 rounded font-bold ${
+            audioEnabled 
+              ? 'bg-green-600 hover:bg-green-700' 
+              : 'bg-red-600 hover:bg-red-700'
+          }`}
+        >
+          {audioEnabled ? '🔊 Sound ON' : '🔇 Sound OFF'}
+        </button>
+      </div> */}
       {/* Topbar Component */}
       <Topbar onCameraSelect={handleCameraSelect} />
 

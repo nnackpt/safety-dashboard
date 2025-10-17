@@ -15,7 +15,9 @@ export interface CameraInfo {
 
 export interface Detection {
   class: string;
-  confidence: number;
+  classified_as: string | null;
+  detection_conf: number;
+  classification_conf: number | null;
   bbox: number[];
 }
 

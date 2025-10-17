@@ -119,7 +119,7 @@ export default function Dashboard() {
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Today's Detections</p>
+                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Today&apos;s Detections</p>
                   <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{stats.todayDetections}</p>
                 </div>
                 <TrendingUp className="text-yellow-500 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
