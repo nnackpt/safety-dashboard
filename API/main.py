@@ -165,7 +165,7 @@ TRACKER_TYPE = "bytetrack.yaml"  # หรือ "botsort.yaml"
 ENABLE_EMAIL_ALERT = True
 EMAIL_COOLDOWN = 300  # 5 นาที
 
-DETECTION_INTERVAL = 5  # ตรวจจับทุก N เฟรม แทน ทุกเฟรม
+DETECTION_INTERVAL = 10  # ตรวจจับทุก N เฟรม แทน ทุกเฟรม
 CAMERA_OFFSET = 5
 
 # Outlook/Office365 SMTP Settings
@@ -288,8 +288,8 @@ def is_point_in_polygon(point, polygon):
         p1x, p1y = p2x, p2y
     return inside
 
-def send_email_alert(camera_id, ng_count, image_paths):
-    """ส่งอีเมลแจ้งเตือน NG พร้อมแสดงรูปภาพ inline"""
+def send_email_alert(camera_id, ng_count, image_paths, ng_detections):
+    """ส่งอีเมลแจ้งเตือน NG พร้อมแสดงรูปภาพ inline และรายละเอียด detections"""
     if not ENABLE_EMAIL_ALERT:
         return False
     
@@ -302,10 +302,35 @@ def send_email_alert(camera_id, ng_count, image_paths):
                 return False
             last_email_time[camera_id] = current_time
         
+        # ⭐ สร้างรายการ detections แบบจัดกลุ่มตาม class
+        detection_summary = {}
+        for d in ng_detections:
+            classified_as = d.get('classified_as', 'unknown')
+            if classified_as not in detection_summary:
+                detection_summary[classified_as] = 0
+            detection_summary[classified_as] += 1
+        
+        # สร้าง HTML สำหรับแสดง detection details
+        detection_html = ""
+        for class_name, count in detection_summary.items():
+            # แปลงชื่อให้อ่านง่าย เช่น non-safety-glove → Non-Safety Glove
+            display_name = class_name.replace('-', ' ').title()
+            detection_html += f"""
+            <tr>
+                <td style="padding: 8px; border: 1px solid #ddd; background-color: #ffe6e6;">
+                    <span style="color: #ff0000; font-weight: bold;">⚠️ {display_name}</span>
+                </td>
+                <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #ff0000;">
+                    {count}
+                </td>
+            </tr>
+            """
+        
         # สร้าง email message
         msg = MIMEMultipart('related')
         msg['From'] = formataddr((SENDER_NAME, SENDER_EMAIL))
         msg['To'] = ', '.join(RECIPIENT_EMAILS)
+        msg['Cc'] = ', '.join(CC_EMAILS)
         msg['Subject'] = f"⚠️ NG Detected - Camera {camera_id+1} [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
         
         # สร้าง HTML body
@@ -320,9 +345,25 @@ def send_email_alert(camera_id, ng_count, image_paths):
                 <div style="padding: 20px;">
                     <p><strong>Camera:</strong> Camera {camera_id+1}</p>
                     <p><strong>Time:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-                    <p><strong>NG Count:</strong> {ng_count}</p>
-                    <p><strong>Location:</strong> {CAM_URLS[camera_id]}</p>
+                    <p><strong>Total NG/Non-Safety Count:</strong> <span style="color: red; font-size: 24px; font-weight: bold;">{ng_count}</span></p>
+                    <p><strong>Location:</strong> Slitting Process</p>
                 </div>
+                
+                <div style="padding: 20px;">
+                    <h3>📋 Detection Details:</h3>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                        <thead>
+                            <tr style="background-color: #f0f0f0;">
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Item Type</th>
+                                <th style="padding: 10px; border: 1px solid #ddd; text-align: center;">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {detection_html}
+                        </tbody>
+                    </table>
+                </div>
+                
                 <div style="padding: 20px;">
                     <h3>📸 Detection Image:</h3>
         """
@@ -337,7 +378,7 @@ def send_email_alert(camera_id, ng_count, image_paths):
                 <div style="background-color: #f0f0f0; padding: 15px; margin-top: 20px; border-radius: 5px;">
                     <p style="color: #666; font-size: 12px;">
                         This is an automated alert from CCTV Monitoring System.<br>
-                        Please check the cameras immediately.
+                        Please check the cameras immediately and ensure proper PPE usage.
                     </p>
                 </div>
             </body>
@@ -358,15 +399,21 @@ def send_email_alert(camera_id, ng_count, image_paths):
             
             print(f"📎 [Camera {camera_id+1}] Attached inline image: {os.path.basename(annotated_path)}")
         
+        all_recipients = RECIPIENT_EMAILS + CC_EMAILS
+        
         # ส่งอีเมล
         print(f"📧 [Camera {camera_id+1}] Connecting to SMTP server...")
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             if SENDER_PASSWORD:
                 server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.send_message(msg)
+            server.sendmail(SENDER_EMAIL, all_recipients, msg.as_string())
         
-        print(f"✅ [Camera {camera_id+1}] Email alert sent successfully to {len(RECIPIENT_EMAILS)} recipients")
+        # แสดงรายละเอียดที่ส่งไป
+        print(f"✅ [Camera {camera_id+1}] Email alert sent with detection details:")
+        for class_name, count in detection_summary.items():
+            print(f"   - {class_name}: {count}")
+        
         return True
         
     except smtplib.SMTPAuthenticationError:
@@ -390,9 +437,15 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         # สร้าง timestamp สำหรับชื่อไฟล์
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         
-        # นับจำนวน NG ในภาพ
-        ng_detections = [d for d in detections if d['class'].strip().upper() == 'NG']
+        ng_detections = [d for d in detections 
+                        if d.get('classified_as', '').strip().upper() == 'NG' 
+                        or 'non-safety' in d.get('classified_as', '').lower()]
         ng_count = len(ng_detections)
+        
+        # ⭐ เพิ่ม debug log
+        print(f"🔍 [Camera {camera_id+1}] Total detections: {len(detections)}, NG/non-safety count: {ng_count}")
+        for d in ng_detections:
+            print(f"   - {d.get('class')} → {d.get('classified_as')} (conf: {d.get('classification_conf')})")
         
         base_filename = f"cam{camera_id+1}_ng{ng_count}_{timestamp}"
         
@@ -429,7 +482,8 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         if SAVE_ANNOTATED:
             image_paths['annotated'] = annotated_path
         
-        send_email_alert(camera_id, ng_count, image_paths)
+        # ⭐ ส่ง ng_detections ไปด้วย
+        send_email_alert(camera_id, ng_count, image_paths, ng_detections)
         
         return True
         
@@ -1194,7 +1248,11 @@ if static_path.exists():
     
     @app.get("/{full_path:path}")
     async def serve_nextjs(full_path: str):
+        if not full_path or full_path == "/":
+            return FileResponse(static_path / "index.html")
+        
         file_path = static_path / full_path
+        
         if file_path.is_file():
             return FileResponse(file_path)
         
@@ -1202,7 +1260,11 @@ if static_path.exists():
         if html_path.is_file():
             return FileResponse(html_path)
         
-        return FileResponse(static_path / "index.html")
+        index_path = static_path / full_path / "index.html"
+        if index_path.is_file():
+            return FileResponse(index_path)
+        
+        return {"error": "Not found", "path": full_path}
 
 if __name__ == "__main__":
     import uvicorn
