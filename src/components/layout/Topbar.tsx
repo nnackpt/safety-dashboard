@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BarChart3, Camera as CameraIcon, ChevronDown, Clock } from "lucide-react";
-import { useRouter } from "next/navigation";
+// import { useRouter } from "next/navigation";
 
 function formatDateTime(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -25,7 +25,7 @@ export interface TopbarProps {
 }
 
 export default function Topbar({ onCameraSelect }: TopbarProps) {
-  const router = useRouter();
+  // const router = useRouter();
   const [selectedCamera, setSelectedCamera] = useState(CAMERA_OPTIONS[1])
   const [open, setOpen] = useState(false)
   const [now, setNow] = useState<Date | null>(null)
@@ -96,7 +96,7 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
           {/* เพิ่มปุ่ม Dashboard */}
           <button
             type="button"
-            onClick={() => router.push('/dashboard')}
+            onClick={() => window.location.href = '/dashboard'}
             className="flex items-center gap-2 bg-[#F39C12] hover:bg-[#E67E22] text-white rounded-[2px] px-3 sm:px-4 py-1.5 sm:py-2 leading-none text-sm sm:text-base transition-colors cursor-pointer"
           >
             <BarChart3 size={16} strokeWidth={2.5} className="sm:w-5 sm:h-5" />

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import cv2
 import threading
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pathlib import Path
 from ultralytics import YOLO
 import numpy as np
@@ -18,6 +18,10 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.utils import formataddr
+import pyodbc
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 USE_HALF_PRECISION = True
@@ -191,6 +195,40 @@ CLASS_MAPPING = {
     'glasses': ['non-safety-glasses', 'safety-glasses'],
     'shirt': ['non-safety-shirt', 'safety-shirt']
 }
+
+# ---- DATABASE CONFIG ----
+DB_CONFIG = {
+    'server': os.getenv('DB_SERVER'),
+    'database': os.getenv('DB_NAME'),
+    'username': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'driver': os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
+}
+
+def get_db_connection():
+    """สร้าง connection ไปยัง SQL Server"""
+    try:
+        conn_str = (
+            f"DRIVER={{{DB_CONFIG['driver']}}};"
+            f"SERVER={DB_CONFIG['server']};"
+            f"DATABASE={DB_CONFIG['database']};"
+            f"UID={DB_CONFIG['username']};"
+            f"PWD={DB_CONFIG['password']}"
+        )
+        conn = pyodbc.connect(conn_str)
+        return conn
+    except Exception as e:
+        print(f"❌ Database connection error: {e}")
+        return None
+
+def test_db_connection():
+    """ทดสอบการเชื่อมต่อ database"""
+    conn = get_db_connection()
+    if conn:
+        print("✅ Database connected successfully!")
+        conn.close()
+        return True
+    return False
 
 # ---- APP SETUP ----
 app = FastAPI(title="CCTV Camera API with Object Detection")
@@ -424,17 +462,15 @@ def send_email_alert(camera_id, ng_count, image_paths, ng_detections):
         return False
 
 def save_ng_image(original_frame, annotated_frame, camera_id, detections):
-    """Save NG images with timestamp"""
+    """Save NG images with timestamp and insert to database"""
     try:
         current_time = time.time()
         
-        # ตรวจสอบ cooldown
         with ng_save_lock:
             if current_time - last_ng_save_time[camera_id] < NG_COOLDOWN:
                 return False
             last_ng_save_time[camera_id] = current_time
         
-        # สร้าง timestamp สำหรับชื่อไฟล์
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         
         ng_detections = [d for d in detections 
@@ -442,22 +478,18 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
                         or 'non-safety' in d.get('classified_as', '').lower()]
         ng_count = len(ng_detections)
         
-        # ⭐ เพิ่ม debug log
-        print(f"🔍 [Camera {camera_id+1}] Total detections: {len(detections)}, NG/non-safety count: {ng_count}")
-        for d in ng_detections:
-            print(f"   - {d.get('class')} → {d.get('classified_as')} (conf: {d.get('classification_conf')})")
-        
         base_filename = f"cam{camera_id+1}_ng{ng_count}_{timestamp}"
         
-        # บันทึกภาพต้นฉบับ
+        # บันทึกรูปภาพ
+        original_path = None
+        annotated_path = None
+        
         if SAVE_ORIGINAL:
             original_path = os.path.join(NG_SAVE_DIR, "original", f"{base_filename}_orig.jpg")
             cv2.imwrite(original_path, original_frame)
         
-        # บันทึกภาพที่มี annotation
         if SAVE_ANNOTATED:
             annotated_path = os.path.join(NG_SAVE_DIR, "annotated", f"{base_filename}_anno.jpg")
-            
             info_frame = annotated_frame.copy()
             
             cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 0), -1)
@@ -474,7 +506,10 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         
         ng_saved_count[camera_id] += 1
         
-        print(f"📸 [Camera {camera_id+1}] NG image saved: {base_filename} (Total NG: {ng_count})")
+        # ⭐ บันทึกลง Database
+        ticket_id = insert_ng_ticket_to_db(camera_id, ng_detections, annotated_path, original_path)
+        
+        print(f"📸 [Camera {camera_id+1}] NG saved: {base_filename} | DB Ticket: {ticket_id}")
         
         image_paths = {}
         if SAVE_ORIGINAL:
@@ -482,7 +517,6 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         if SAVE_ANNOTATED:
             image_paths['annotated'] = annotated_path
         
-        # ⭐ ส่ง ng_detections ไปด้วย
         send_email_alert(camera_id, ng_count, image_paths, ng_detections)
         
         return True
@@ -490,6 +524,77 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
     except Exception as e:
         print(f"❌ Error saving NG image: {e}")
         return False
+    
+def insert_ng_ticket_to_db(camera_id, ng_detections, annotated_path, original_path):
+    """บันทึก NG Ticket และ Evidence ลง Database"""
+    conn = get_db_connection()
+    if not conn:
+        print("❌ Cannot connect to database")
+        return None
+    
+    try:
+        cursor = conn.cursor()
+        
+        # 1. สร้าง NG Ticket
+        detected_time = datetime.now()
+        location = f"Camera {camera_id + 1} - Slitting Process"
+        
+        # สร้างรายละเอียด detection
+        details = ", ".join([f"{d.get('classified_as')}" for d in ng_detections])
+        
+        insert_ticket = """
+        INSERT INTO ppe_NGTicket 
+        (DetectedTime, Location, RuleID, Severity, Status, NotifiedEmail, CreatedBy, CreatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        cursor.execute(insert_ticket, (
+            detected_time,
+            location,
+            1,  # RuleID - ปรับตามกฎที่ต้องการ
+            'High',  # Severity
+            'Open',  # Status
+            ','.join(RECIPIENT_EMAILS),
+            'CCTV_System',
+            detected_time
+        ))
+        
+        # ดึง TicketID ที่เพิ่งสร้าง
+        cursor.execute("SELECT @@IDENTITY AS TicketID")
+        ticket_id = cursor.fetchone()[0]
+        
+        # 2. บันทึกไฟล์หลักฐาน
+        if annotated_path:
+            insert_evidence = """
+            INSERT INTO ppe_NGEvidence (TicketID, FilePath, FileType, CreatedAt)
+            VALUES (?, ?, ?, ?)
+            """
+            cursor.execute(insert_evidence, (
+                ticket_id,
+                annotated_path,
+                'annotated',
+                detected_time
+            ))
+        
+        if original_path:
+            cursor.execute(insert_evidence, (
+                ticket_id,
+                original_path,
+                'original',
+                detected_time
+            ))
+        
+        conn.commit()
+        print(f"✅ Ticket {ticket_id} saved to database")
+        
+        return ticket_id
+        
+    except Exception as e:
+        print(f"❌ Database insert error: {e}")
+        conn.rollback()
+        return None
+    finally:
+        conn.close()
 
 def classify_object(frame, bbox, detected_class):
     """Classify cropped object using classification model"""
@@ -850,6 +955,15 @@ async def startup_event():
     print(f"\n{'='*60}")
     print(f"🚀 Starting CCTV System")
     print(f"{'='*60}")
+    print("🔌 Testing database connection...")
+    if test_db_connection():
+        print(f"📊 Database: {DB_CONFIG['database']} @ {DB_CONFIG['server']}")
+    else:
+        print("⚠️ Warning: Database connection failed - continuing without DB")
+    
+    print(f"NG Images Directory: {os.path.abspath(NG_SAVE_DIR)}")
+    print(f"{'='*60}\n")
+    
     print(f"NG Images Directory: {os.path.abspath(NG_SAVE_DIR)}")
     print(f"NG Cooldown: {NG_COOLDOWN} seconds")
     print(f"Save Original: {SAVE_ORIGINAL}")
@@ -1227,6 +1341,41 @@ async def test_email_simple():
             "error": "Failed to send test email",
             "details": str(e)
         }
+
+# ---- DATABASE TEST ENDPOINTS ----
+@app.get("/api/db/test")
+async def test_database():
+    """ทดสอบการเชื่อมต่อ Database"""
+    conn = get_db_connection()
+    if not conn:
+        return {
+            "success": False,
+            "message": "Cannot connect to database",
+            "config": {
+                "server": DB_CONFIG['server'],
+                "database": DB_CONFIG['database'],
+                "driver": DB_CONFIG['driver']
+            }
+        }
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT @@VERSION")
+        version = cursor.fetchone()[0]
+        
+        return {
+            "success": True,
+            "message": "Database connected successfully",
+            "server_version": version,
+            "config": {
+                "server": DB_CONFIG['server'],
+                "database": DB_CONFIG['database']
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        conn.close()
 
 # ---- STATIC FILES ----
 static_path = Path("./out")
