@@ -21,320 +21,263 @@ import {
 } from "recharts";
 
 // Mock Data
-const mockTimelineData = [
-  { date: "01/10", detections: 5 },
-  { date: "02/10", detections: 8 },
-  { date: "03/10", detections: 3 },
-  { date: "04/10", detections: 12 },
-  { date: "05/10", detections: 7 },
-  { date: "06/10", detections: 15 },
-  { date: "07/10", detections: 6 },
+const mockPPEStatusData = [
+  { name: "OK", value: 85, color: "#10B981" },
+  { name: "NG", value: 15, color: "#DC2626" },
 ];
 
-const mockSeverityData = [
-  { name: "Critical", value: 12, color: "#DC2626" },
-  { name: "High", value: 25, color: "#F59E0B" },
-  { name: "Medium", value: 18, color: "#FBBF24" },
-  { name: "Low", value: 8, color: "#10B981" },
-];
-
-const mockLocationData = [
-  { location: "Production Line A", count: 18 },
-  { location: "Production Line B", count: 15 },
-  { location: "Warehouse", count: 12 },
-  { location: "Assembly Area", count: 8 },
+const mockMonthlyData = [
+  { month: "Jan", count: 45 },
+  { month: "Feb", count: 52 },
+  { month: "Mar", count: 38 },
+  { month: "Apr", count: 63 },
+  { month: "May", count: 48 },
+  { month: "Jun", count: 55 },
+  { month: "Jul", count: 41 },
+  { month: "Aug", count: 58 },
+  { month: "Sep", count: 47 },
+  { month: "Oct", count: 53 },
+  { month: "Nov", count: 0 },
+  { month: "Dec", count: 0 },
 ];
 
 const mockRuleViolations = [
   { rule: "Safety Gloves", count: 25 },
   { rule: "Safety Shoes", count: 18 },
   { rule: "Safety Glasses", count: 15 },
-  { rule: "Safety Vest", count: 5 },
-];
-
-const mockStatusData = [
-  { name: "Resolved", value: 35, color: "#10B981" },
-  { name: "Pending", value: 18, color: "#F59E0B" },
-  { name: "In Progress", value: 10, color: "#3B82F6" },
+  { rule: "Safety Shirt", count: 5 },
 ];
 
 export default function Dashboard() {
   const router = useRouter();
   const [stats, setStats] = useState({
-    totalDetections: 63,
     todayDetections: 15,
-    activeTickets: 28,
-    resolvedToday: 7,
+    yesterdayDetections: 12,
+    totalNG: 63,
   });
+  const ruleColors = ["#DC2626", "#F59E0B", "#3B82F6", "#10B981"];
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
 
   // TODO: CALL API
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // const response = await fetch(`${API_URL}/dashboard/stats`);
-        // const data = await response.json();
-        // setStats(data);
+        // Fetch main stats
+        const statsResponse = await fetch(`${API_URL}/dashboard/stats`);
+        const statsData = await statsResponse.json();
+        if (statsData.success) {
+          setStats({
+            todayDetections: statsData.todayDetections,
+            yesterdayDetections: statsData.yesterdayDetections,
+            totalNG: statsData.totalNG,
+          });
+        }
+
+        // Fetch PPE status
+        const ppeResponse = await fetch(`${API_URL}/dashboard/ppe-status`);
+        const ppeData = await ppeResponse.json();
+        if (ppeData.success) {
+          // setMockPPEStatusData(ppeData.data);
+        }
+
+        // Fetch rule violations
+        const ruleResponse = await fetch(`${API_URL}/dashboard/rule-violations`);
+        const ruleData = await ruleResponse.json();
+        if (ruleData.success) {
+          // setMockRuleViolations(ruleData.data);
+        }
+
+        // Fetch monthly summary
+        const monthlyResponse = await fetch(`${API_URL}/dashboard/monthly-summary`);
+        const monthlyData = await monthlyResponse.json();
+        if (monthlyData.success) {
+          // setMockMonthlyData(monthlyData.data);
+        }
+
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }
     };
 
-    // fetchDashboardData();
-    // const interval = setInterval(fetchDashboardData, 30000);
-    // return () => clearInterval(interval);
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="h-screen flex flex-col bg-[#09304F] text-white overflow-hidden">
       {/* Header */}
-      <div className="bg-[#0B4A82] px-3 sm:px-4 lg:px-6 py-2 sm:py-3 flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2 sm:gap-4">
+      <div className="bg-[#0B4A82] px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center">
+          <img src="/logo.png" alt="Autoliv" className="h-8 sm:h-10" />
+        </div>
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold">Safety Dashboard</h1>
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-1 sm:gap-2 bg-[#2F2F2F] hover:bg-[#3A3A3A] px-2 sm:px-3 py-1.5 sm:py-2 rounded transition-colors cursor-pointer text-xs sm:text-sm"
+            className="flex items-center gap-2 bg-[#2F2F2F] hover:bg-[#3A3A3A] px-3 py-2 rounded text-sm transition-colors cursor-pointer"
           >
-            <ArrowLeft size={16} className="sm:w-5 sm:h-5" />
+            <ArrowLeft size={18} />
             <span>Back to Monitor</span>
           </button>
-          <h1 className="text-base sm:text-xl lg:text-2xl font-bold">Safety Dashboard</h1>
         </div>
-        <img src="/logo.png" alt="Logo" className="h-6 sm:h-8 lg:h-10" />
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1800px] mx-auto p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Total Detections</p>
-                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{stats.totalDetections}</p>
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <div className="flex flex-col">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Today&apos;s Detection</p>
+                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
+                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.todayDetections}</span>
+                    </div>
+                  </div>
                 </div>
-                <AlertTriangle className="text-red-500 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
               </div>
             </div>
 
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Today&apos;s Detections</p>
-                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{stats.todayDetections}</p>
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <div className="flex flex-col">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Yesterday Detection</p>
+                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
+                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.yesterdayDetections}</span>
+                    </div>
+                  </div>
                 </div>
-                <TrendingUp className="text-yellow-500 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
               </div>
             </div>
 
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Active Tickets</p>
-                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{stats.activeTickets}</p>
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <div className="flex flex-col">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Total NG</p>
+                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
+                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.totalNG}</span>
+                    </div>
+                  </div>
                 </div>
-                <Clock className="text-orange-500 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
-              </div>
-            </div>
-
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] sm:text-xs lg:text-sm text-gray-300">Resolved Today</p>
-                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold mt-0.5 sm:mt-1">{stats.resolvedToday}</p>
-                </div>
-                <CheckCircle className="text-green-500 w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10" />
               </div>
             </div>
           </div>
 
           {/* Charts Row 1 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            {/* Detection Timeline */}
+            {/* Today's PPE NG Case */}
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Detection Timeline (Last 7 Days)</h3>
-              <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                <LineChart data={mockTimelineData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#94A3B8" 
-                    tick={{ fontSize: 11 }}
-                    height={40}
-                  />
-                  <YAxis 
-                    stroke="#94A3B8" 
-                    tick={{ fontSize: 11 }}
-                    width={35}
-                  />
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: "#1E293B", 
-                      border: "1px solid #334155",
-                      fontSize: "12px"
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: "12px" }} />
-                  <Line
-                    type="monotone"
-                    dataKey="detections"
-                    stroke="#F59E0B"
-                    strokeWidth={2}
-                    dot={{ fill: "#F59E0B", r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Today's PPE NG Case</h3>
+                <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
+                  <PieChart>
+                    <Pie
+                      data={mockPPEStatusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={(props: PieLabelRenderProps) => {
+                        const { name, percent } = props as { name?: string; percent?: number };
+                        const n = typeof name === "string" ? name : String(name ?? "");
+                        const p = typeof percent === "number" ? (percent * 100).toFixed(0) : "0";
+                        return `${n}: ${p}%`;
+                      }}
+                      outerRadius="70%"
+                      fill="#8884d8"
+                      dataKey="value"
+                      style={{ fontSize: "11px" }}
+                    >
+                      {mockPPEStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ 
+                        backgroundColor: "#1E293B", 
+                        border: "1px solid #334155",
+                        fontSize: "12px"
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            {/* Severity Distribution */}
+            {/* Frequency of NG Events */}
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Severity Distribution</h3>
-              <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                <PieChart>
-                  <Pie
-                    data={mockSeverityData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(props: PieLabelRenderProps) => {
-                      const { name, percent } = props as { name?: string; percent?: number };
-                      const n = typeof name === "string" ? name : String(name ?? "");
-                      const p = typeof percent === "number" ? (percent * 100).toFixed(0) : "0";
-                      return `${n}: ${p}%`;
-                    }}
-                    outerRadius="70%"
-                    fill="#8884d8"
-                    dataKey="value"
-                    style={{ fontSize: "11px" }}
-                  >
-                    {mockSeverityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: "#1E293B", 
-                      border: "1px solid #334155",
-                      fontSize: "12px"
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Frequency of NG Events</h3>
+                <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
+                  <BarChart data={mockRuleViolations} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis 
+                      type="number" 
+                      stroke="#94A3B8" 
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis 
+                      dataKey="rule" 
+                      type="category" 
+                      stroke="#94A3B8" 
+                      width={100}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip
+                      contentStyle={{ 
+                        backgroundColor: "#1E293B", 
+                        border: "1px solid #334155",
+                        fontSize: "12px"
+                      }}
+                    />
+                    <Bar dataKey="count">
+                      {mockRuleViolations.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={ruleColors[index % ruleColors.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            {/* Detections by Location */}
+          <div className="grid grid-cols-1 gap-3 sm:gap-4">
+            {/* Monthly Summary of NG Events */}
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Detections by Location</h3>
-              <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                <BarChart data={mockLocationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis 
-                    dataKey="location" 
-                    stroke="#94A3B8" 
-                    angle={-15} 
-                    textAnchor="end" 
-                    height={70}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis 
-                    stroke="#94A3B8" 
-                    tick={{ fontSize: 11 }}
-                    width={35}
-                  />
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: "#1E293B", 
-                      border: "1px solid #334155",
-                      fontSize: "12px"
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#3B82F6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Rule Violations */}
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">PPE Rule Violations</h3>
-              <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                <BarChart data={mockRuleViolations} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis 
-                    type="number" 
-                    stroke="#94A3B8" 
-                    tick={{ fontSize: 11 }}
-                  />
-                  <YAxis 
-                    dataKey="rule" 
-                    type="category" 
-                    stroke="#94A3B8" 
-                    width={100}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: "#1E293B", 
-                      border: "1px solid #334155",
-                      fontSize: "12px"
-                    }}
-                  />
-                  <Bar dataKey="count" fill="#F59E0B" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Ticket Status */}
-          <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-            <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Ticket Status Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                <PieChart>
-                  <Pie
-                    data={mockStatusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={(props: PieLabelRenderProps) => {
-                      const { name, percent } = props as { name?: string; percent?: number };
-                      const n = typeof name === "string" ? name : String(name ?? "");
-                      const p = typeof percent === "number" ? (percent * 100).toFixed(0) : "0";
-                      return `${n}: ${p}%`;
-                    }}
-                    outerRadius="70%"
-                    fill="#8884d8"
-                    dataKey="value"
-                    style={{ fontSize: "11px" }}
-                  >
-                    {mockStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: "#1E293B", 
-                      border: "1px solid #334155",
-                      fontSize: "12px"
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-
-              <div className="flex flex-col justify-center space-y-2 sm:space-y-3">
-                {mockStatusData.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <div
-                        className="w-3 h-3 sm:w-4 sm:h-4 rounded"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm sm:text-base lg:text-lg">{item.name}</span>
-                    </div>
-                    <span className="text-xl sm:text-2xl font-bold">{item.value}</span>
-                  </div>
-                ))}
+              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Monthly Summary of NG Events</h3>
+                <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
+                  <BarChart data={mockMonthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis 
+                      dataKey="month" 
+                      stroke="#94A3B8" 
+                      height={40}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis 
+                      stroke="#94A3B8" 
+                      tick={{ fontSize: 11 }}
+                      width={35}
+                    />
+                    <Tooltip
+                      contentStyle={{ 
+                        backgroundColor: "#1E293B", 
+                        border: "1px solid #334155",
+                        fontSize: "12px"
+                      }}
+                    />
+                    <Bar dataKey="count" fill="#3B82F6" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
