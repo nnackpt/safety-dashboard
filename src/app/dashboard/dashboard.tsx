@@ -176,7 +176,7 @@ export default function Dashboard() {
             {/* Today's PPE NG Case */}
             <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
               <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Today's PPE NG Case</h3>
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Today&apos;s PPE NG Case</h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
                   <PieChart>
                     <Pie

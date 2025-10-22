@@ -12,6 +12,8 @@
 
 __pycache__
 out
+out_03.zip
+out_local.zip
 
 # testing
 /coverage
