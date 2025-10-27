@@ -181,13 +181,13 @@ export default function Home() {
   };
 
   return (
-    <div className="flex-1 bg-[#09304F] px-2 sm:px-3 pt-2 sm:pt-3 pb-0 flex flex-col overflow-hidden">
+    <div className="flex-1 bg-[#09304F] px-2 pt-2 pb-0 flex flex-col overflow-hidden">
       <Topbar onCameraSelect={handleCameraSelect} />
 
-      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_360px] gap-3 lg:gap-4 flex-1 min-h-0 mt-2 sm:mt-3">
+      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_280px] gap-2 lg:gap-3 flex-1 min-h-0 mt-2">
         
         {/* ===== Left: Main Camera Display ===== */}
-        <section className={`bg-[#09304F] border-4 sm:border-[6px] p-1 pt-0 pb-0 flex flex-col min-h-0 ${
+        <section className={`bg-[#09304F] border-3 sm:border-4 p-1 pt-0 pb-0 flex flex-col min-h-0 ${
           shouldShowNG ? 'border-red-600' : 'border-green-500'
         }`}>
           <div className={`flex gap-2 h-full items-center ${isSingleView ? 'justify-center' : ''}`}>

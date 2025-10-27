@@ -18,37 +18,37 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
     <aside className="h-auto lg:h-full min-h-0 flex flex-col gap-2 sm:gap-3 lg:gap-4">
       {/* OK Panel */}
       <div 
-        className={`h-20 sm:h-24 md:h-28 lg:h-40 xl:h-48 2xl:h-[215px] border-3 sm:border-4 md:border-6 lg:border-8 xl:border-[10px] border-[#005496] flex items-center justify-center ${
+        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-2 sm:border-3 lg:border-4 border-[#005496] flex items-center justify-center ${
           shouldShowNG ? 'bg-[#CFCFCF]' : 'bg-green-500'
         }`}
       >
-        <span className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-[95px] leading-none font-extrabold text-black">
+        <span className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold text-black">
           OK
         </span>
       </div>
 
       {/* NG Panel */}
       <div 
-        className={`h-20 sm:h-24 md:h-28 lg:h-40 xl:h-48 2xl:h-[215px] border-3 sm:border-4 md:border-6 lg:border-8 xl:border-[10px] border-[#005496] flex items-center justify-center ${
+        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-2 sm:border-3 lg:border-4 border-[#005496] flex items-center justify-center ${
           shouldShowNG ? 'bg-red-600' : 'bg-[#CFCFCF]'
         }`}
       >
-        <span className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl 2xl:text-[95px] leading-none font-extrabold text-black">
+        <span className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold text-black">
           NG
         </span>
       </div>
 
       {/* PPE REQUIREMENT Panel */}
-      <div className="bg-[#0B4A82] border-3 sm:border-4 md:border-[6px] border-[#005496] p-2 sm:p-3 lg:p-4 flex-1 min-h-0 flex flex-col overflow-y-auto">
+      <div className="bg-[#0B4A82] border-2 sm:border-3 border-[#005496] p-2 lg:p-3 flex-1 min-h-0 flex flex-col overflow-y-auto">
         <h3
-          className="text-[#E5E5E5] font-bold text-base sm:text-lg md:text-xl lg:text-2xl tracking-wide text-center flex-shrink-0"
+          className="text-[#E5E5E5] font-bold text-sm sm:text-base lg:text-lg tracking-wide text-center flex-shrink-0"
           style={{ textShadow: "0 4px 0 rgba(0,0,0,.35)" }}
         >
           PPE REQUIREMENT
         </h3>
 
         {/* PPE Icons */}
-        <div className="mt-2 sm:mt-3 lg:mt-4 grid grid-cols-4 gap-1.5 sm:gap-2 md:gap-3 lg:gap-4 xl:gap-6 justify-items-center flex-shrink-0">
+        <div className="mt-2 lg:mt-3 grid grid-cols-4 gap-1.5 lg:gap-2 xl:gap-3 justify-items-center flex-shrink-0">
           {[
             { src: "safety-footerwear.png", alt: "Safety Footwear", violationType: "shoe" },
             { src: "wear-goggle.png", alt: "Wear Goggle", violationType: "glasses" },
@@ -59,9 +59,9 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
             return (
               <div
                 key={src}
-                className={`w-10 sm:w-12 md:w-14 lg:w-16 xl:w-20 rounded-[3px] sm:rounded-[4px] md:rounded-[6px] bg-[#EDEDED] shadow-[0_3px_0_rgba(0,0,0,0.25)] sm:shadow-[0_4px_0_rgba(0,0,0,0.25)] md:shadow-[0_6px_0_rgba(0,0,0,0.25)] p-1 sm:p-1.5 lg:p-2 transition-all ${
+                className={`w-8 sm:w-10 lg:w-12 xl:w-14 rounded-[3px] bg-[#EDEDED] shadow-[0_2px_0_rgba(0,0,0,0.25)] sm:shadow-[0_3px_0_rgba(0,0,0,0.25)] p-1 lg:p-1.5 transition-all ${
                   hasViolation 
-                    ? 'border-3 sm:border-4 border-red-600 ring-2 ring-red-600 ring-offset-1 sm:ring-offset-2' 
+                    ? 'border-2 sm:border-3 border-red-600 ring-1 ring-red-600 ring-offset-1' 
                     : 'border border-[#BFBFBF]'
                 }`}
               >

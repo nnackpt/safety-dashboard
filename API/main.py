@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 import cv2
 import threading
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pathlib import Path
 from ultralytics import YOLO
 import numpy as np
@@ -21,6 +21,7 @@ from email.utils import formataddr
 import pyodbc
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -31,6 +32,15 @@ if DEVICE == 'cuda':
     print(f"🎮 GPU: {torch.cuda.get_device_name(0)}")
     print(f"💾 VRAM Available: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
 
+# ---- DATABASE CONFIG ----
+DB_SERVER = os.getenv('DB_SERVER')
+DB_DATABASE = os.getenv('DB_DATABASE')
+DB_USERNAME = os.getenv('DB_USERNAME')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+ODBC_DRIVER = os.getenv('ODBC_DRIVER', 'ODBC Driver 18 for SQL Server')
+DB_TRUST_CERT = os.getenv('DB_TRUST_CERTIFICATE', 'yes')
+DB_ENCRYPT = os.getenv('DB_ENCRYPT', 'yes')
+
 # ---- CONFIG ----
 CAM_URLS = [
     "rtsp://admin:@CCTV111@10.89.246.38:554/Streaming/Channels/101",
@@ -39,46 +49,42 @@ CAM_URLS = [
 
 ROI_ZONES = {
     0: [
-        (10, 599),
-        (240, 311),
-        (663, 258),
-        (828, 251),
-        (1038, 260),
-        (1592, 326),
-        (1912, 391),
-        (1911, 1073),
-        (144, 1077),
-        (9, 934),
+        (370, 1076),
+        (129, 906),
+        (6, 786),
+        (320, 305),
+        (655, 263),
+        (1085, 274),
+        (1598, 312),
+        (1915, 375),
+        (1912, 1076),
     ],
     1: [
-        (9, 1007),
-        (204, 1057),
-        (496, 1077),
-        (693, 1068),
-        (682, 862),
-        (970, 847),
-        (969, 784),
-        (1104, 765),
-        (1095, 842),
-        (1107, 859),
-        (1107, 909),
-        (1131, 954),
-        (1167, 947),
-        (1167, 930),
-        (1251, 917),
-        (1281, 924),
-        (1306, 967),
-        (1362, 965),
-        (1605, 892),
-        (1826, 797),
-        (1868, 770),
-        (1767, 647),
-        (1472, 353),
-        (1156, 349),
-        (664, 344),
-        (232, 364),
-        (150, 371),
-        (6, 591),
+        (0, 914),
+        (408, 940),
+        (686, 936),
+        (678, 870),
+        (969, 848),
+        (969, 818),
+        (1071, 808),
+        (1078, 768),
+        (1104, 771),
+        (1095, 830),
+        (1180, 849),
+        (1204, 792),
+        (1266, 810),
+        (1293, 746),
+        (1479, 808),
+        (1432, 890),
+        (1914, 724),
+        (1876, 572),
+        (1502, 244),
+        (1184, 224),
+        (849, 207),
+        (666, 206),
+        (346, 212),
+        (102, 249),
+        (0, 362),
     ],
 }
 
@@ -131,7 +137,7 @@ DRAW_EXCLUSION_ZONE = True
 DUAL_W, DUAL_H = 760, 720
 SINGLE_W, SINGLE_H = 1024, 768
 
-MODEL_PATH = r"new_models\train7.pt"
+MODEL_PATH = r"new_models\object_train7.pt"
 CONFIDENCE_THRESHOLD = 0.7
 
 NMS_IOU_THRESHOLD = 0.25  # IoU threshold สำหรับ NMS
@@ -154,7 +160,7 @@ SOUND_FILE = r"Sound Alarm\emergency-alarmsiren-type.mp3"
 SOUND_COOLDOWN = 10
 
 # ---- CLASSIFICATION MODEL CONFIG ----
-CLASSIFICATION_MODEL_PATH = r"new_models\classification_train6.pt"
+CLASSIFICATION_MODEL_PATH = r"new_models\classify_train8.pt"
 ENABLE_CLASSIFICATION = True
 
 # ---- PERSON ----
@@ -171,6 +177,8 @@ EMAIL_COOLDOWN = 300  # 5 นาที
 
 DETECTION_INTERVAL = 10  # ตรวจจับทุก N เฟรม แทน ทุกเฟรม
 CAMERA_OFFSET = 5
+
+CONSECUTIVE_NG_THRESHOLD = 3  # ต้องเจอ NG ติดกัน 3 frame for capture image and send email
 
 # Outlook/Office365 SMTP Settings
 SMTP_SERVER = "smtp.alv.autoliv.int"
@@ -191,44 +199,10 @@ CC_EMAILS = [
 
 CLASS_MAPPING = {
     'hand': ['non-safety-glove', 'safety-glove'],
-    'shoe': ['non-safety-shoe','safety-shoe'],
+    'shoe': ['safety-shoe'],
     'glasses': ['non-safety-glasses', 'safety-glasses'],
     'shirt': ['non-safety-shirt', 'safety-shirt']
 }
-
-# ---- DATABASE CONFIG ----
-DB_CONFIG = {
-    'server': os.getenv('DB_SERVER'),
-    'database': os.getenv('DB_NAME'),
-    'username': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'driver': os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
-}
-
-def get_db_connection():
-    """สร้าง connection ไปยัง SQL Server"""
-    try:
-        conn_str = (
-            f"DRIVER={{{DB_CONFIG['driver']}}};"
-            f"SERVER={DB_CONFIG['server']};"
-            f"DATABASE={DB_CONFIG['database']};"
-            f"UID={DB_CONFIG['username']};"
-            f"PWD={DB_CONFIG['password']}"
-        )
-        conn = pyodbc.connect(conn_str)
-        return conn
-    except Exception as e:
-        print(f"❌ Database connection error: {e}")
-        return None
-
-def test_db_connection():
-    """ทดสอบการเชื่อมต่อ database"""
-    conn = get_db_connection()
-    if conn:
-        print("✅ Database connected successfully!")
-        conn.close()
-        return True
-    return False
 
 # ---- APP SETUP ----
 app = FastAPI(title="CCTV Camera API with Object Detection")
@@ -256,6 +230,8 @@ tracked_alerts: Dict[int, Dict[int, float]] = {i: {} for i in range(len(CAM_URLS
 TRACK_ALERT_COOLDOWN = 60
 last_email_time: Dict[int, float] = {i: 0 for i in range(len(CAM_URLS))}
 email_lock = threading.Lock()
+consecutive_ng_frames: Dict[int, int] = {i: 0 for i in range(len(CAM_URLS))}
+ng_frame_lock = threading.Lock()
 
 # Statistics
 ng_count_total: Dict[int, int] = {i: 0 for i in range(len(CAM_URLS))}
@@ -307,6 +283,203 @@ if ENABLE_CLASSIFICATION:
     except Exception as e:
         print(f"❌ Error loading Classification model: {e}")
         classification_model = None
+
+# Database Function
+def get_db_connection():
+    """สร้าง connection ไปยัง SQL Server Database"""
+    try:
+        conn_str = (
+            f'DRIVER={{{ODBC_DRIVER}}};'
+            f'SERVER={DB_SERVER};'
+            f'DATABASE={DB_DATABASE};'
+            f'UID={DB_USERNAME};'
+            f'PWD={DB_PASSWORD};'
+            f'TrustServerCertificate={DB_TRUST_CERT};'
+            f'Encrypt={DB_ENCRYPT}'
+        )
+        conn = pyodbc.connect(conn_str)
+        return conn
+    except Exception as e:
+        print(f"❌ Database connection error: {e}")
+        return None
+
+def insert_ng_ticket(camera_id: int, location: str, rule_id: int, severity: str = "High"):
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return None
+
+        cursor = conn.cursor()
+
+        query = """
+        INSERT INTO ppe_NGTicket (DetectedTime, Location, RuleID, Severity, Status, CreatedBy, CreatedDate)
+        OUTPUT INSERTED.TicketID
+        VALUES (GETDATE(), ?, ?, ?, 'New', 'AI System', GETDATE());
+        """
+
+        cursor.execute(query, (location, rule_id, severity))
+        row = cursor.fetchone()  # จะมี resultset เดียวจาก OUTPUT
+        if not row:
+            conn.rollback()
+            print("❌ insert_ng_ticket: INSERT succeeded but no TicketID returned")
+            return None
+
+        ticket_id = int(row[0])
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        print(f"✅ NG Ticket created: ID={ticket_id}, Camera={camera_id}, Location={location}")
+        return ticket_id
+
+    except Exception as e:
+        print(f"❌ Error inserting NG ticket: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            cursor.close()
+            conn.close()
+        except Exception:
+            pass
+        return None
+
+def insert_ng_evidence(ticket_id: int, file_path: str, file_type: str = "Image"):
+    """บันทึก Evidence (รูปภาพ) ลง Database"""
+    try:
+        # ตรวจสอบ input
+        if not ticket_id:
+            print(f"❌ insert_ng_evidence: Invalid ticket_id={ticket_id}")
+            return False
+        
+        if not file_path or not os.path.exists(file_path):
+            print(f"❌ insert_ng_evidence: File not found: {file_path}")
+            return False
+        
+        conn = get_db_connection()
+        if not conn:
+            print("❌ insert_ng_evidence: Cannot connect to database")
+            return False
+        
+        cursor = conn.cursor()
+        
+        query = """
+        INSERT INTO ppe_NGEvidence (TicketID, FilePath, FileType, CreatedDate)
+        VALUES (?, ?, ?, GETDATE())
+        """
+        
+        print(f"🔄 [Database] Inserting evidence: TicketID={ticket_id}, File={os.path.basename(file_path)}, Type={file_type}")
+        
+        cursor.execute(query, (ticket_id, file_path, file_type))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        print(f"✅ Evidence saved: TicketID={ticket_id}, File={os.path.basename(file_path)}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error inserting evidence: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+        except:
+            pass
+        return False
+
+def get_active_rules():
+    """ดึงข้อมูล Rule ที่ active จาก Database"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+            
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT RuleID, RuleName, RuleDescription, IsRequired
+        FROM ppe_RuleMaster
+        WHERE Status = 1
+        """
+        
+        cursor.execute(query)
+        rules = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return rules
+        
+    except Exception as e:
+        print(f"❌ Error fetching rules: {e}")
+        return []
+
+def get_notification_emails():
+    """ดึงรายชื่อ Email ที่ active จาก Database"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+            
+        cursor = conn.cursor()
+        
+        query = """
+        SELECT EmailAddress, Name, Role
+        FROM sys_EmailMaster
+        WHERE IsActive = 1
+        """
+        
+        cursor.execute(query)
+        emails = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return [row[0] for row in emails]  # Return email addresses
+        
+    except Exception as e:
+        print(f"❌ Error fetching emails: {e}")
+        return []
+
+def update_ticket_status(ticket_id: int, status: str, notified_email: str = None):
+    """อัพเดทสถานะของ Ticket"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+            
+        cursor = conn.cursor()
+        
+        if notified_email:
+            query = """
+            UPDATE ppe_NGTicket
+            SET Status = ?, NotifiedEmail = ?
+            WHERE TicketID = ?
+            """
+            cursor.execute(query, (status, notified_email, ticket_id))
+        else:
+            query = """
+            UPDATE ppe_NGTicket
+            SET Status = ?
+            WHERE TicketID = ?
+            """
+            cursor.execute(query, (status, ticket_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        print(f"✅ Ticket {ticket_id} updated to status: {status}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error updating ticket: {e}")
+        return False
 
 # ---- DETECTION FUNCTION ----
 def is_point_in_polygon(point, polygon):
@@ -462,15 +635,17 @@ def send_email_alert(camera_id, ng_count, image_paths, ng_detections):
         return False
 
 def save_ng_image(original_frame, annotated_frame, camera_id, detections):
-    """Save NG images with timestamp and insert to database"""
+    """Save NG images with timestamp และบันทึกลง Database"""
     try:
         current_time = time.time()
         
+        # ตรวจสอบ cooldown
         with ng_save_lock:
             if current_time - last_ng_save_time[camera_id] < NG_COOLDOWN:
                 return False
             last_ng_save_time[camera_id] = current_time
         
+        # สร้าง timestamp สำหรับชื่อไฟล์
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
         
         ng_detections = [d for d in detections 
@@ -478,18 +653,24 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
                         or 'non-safety' in d.get('classified_as', '').lower()]
         ng_count = len(ng_detections)
         
+        # Debug log
+        print(f"🔍 [Camera {camera_id+1}] Total detections: {len(detections)}, NG/non-safety count: {ng_count}")
+        for d in ng_detections:
+            print(f"   - {d.get('class')} → {d.get('classified_as')} (conf: {d.get('classification_conf')})")
+        
         base_filename = f"cam{camera_id+1}_ng{ng_count}_{timestamp}"
         
-        # บันทึกรูปภาพ
+        # บันทึกภาพต้นฉบับ
         original_path = None
-        annotated_path = None
-        
         if SAVE_ORIGINAL:
             original_path = os.path.join(NG_SAVE_DIR, "original", f"{base_filename}_orig.jpg")
             cv2.imwrite(original_path, original_frame)
         
+        # บันทึกภาพที่มี annotation
+        annotated_path = None
         if SAVE_ANNOTATED:
             annotated_path = os.path.join(NG_SAVE_DIR, "annotated", f"{base_filename}_anno.jpg")
+            
             info_frame = annotated_frame.copy()
             
             cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 0), -1)
@@ -506,10 +687,96 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         
         ng_saved_count[camera_id] += 1
         
-        # ⭐ บันทึกลง Database
-        ticket_id = insert_ng_ticket_to_db(camera_id, ng_detections, annotated_path, original_path)
+        print(f"📸 [Camera {camera_id+1}] NG image saved: {base_filename} (Total NG: {ng_count})")
         
-        print(f"📸 [Camera {camera_id+1}] NG saved: {base_filename} | DB Ticket: {ticket_id}")
+        # บันทึกลง Database - แยก Ticket ตามประเภท NG
+        ticket_ids = []
+        try:
+            location = f"Slitting Process - Camera {camera_id+1}"
+            severity = "High"  # กำหนด High ตลอด
+            
+            # แยก NG ตามประเภท
+            ng_by_type = {}
+            for d in ng_detections:
+                classified = d.get('classified_as', '').lower()
+                if 'non-safety-glove' in classified:
+                    ng_by_type.setdefault('glove', []).append(d)
+                elif 'non-safety-shoe' in classified:
+                    ng_by_type.setdefault('shoe', []).append(d)
+                elif 'non-safety-glasses' in classified:
+                    ng_by_type.setdefault('glasses', []).append(d)
+                elif 'non-safety-shirt' in classified:
+                    ng_by_type.setdefault('shirt', []).append(d)
+                else:
+                    # กรณีที่เป็น NG ทั่วไป (ไม่ตรงกับประเภทที่กำหนด)
+                    ng_by_type.setdefault('general', []).append(d)
+            
+            # Rule ID mapping
+            rule_mapping = {
+                'glove': 2,
+                'shoe': 3,
+                'glasses': 4,
+                'shirt': 5,
+                'general': 1  # default rule สำหรับ NG ทั่วไป
+            }
+            
+            # ชื่อประเภทสำหรับแสดงผล
+            type_names = {
+                'glove': 'Non-Safety Glove',
+                'shoe': 'Non-Safety Shoe',
+                'glasses': 'Non-Safety Glasses',
+                'shirt': 'Non-Safety Shirt',
+                'general': 'PPE Detection'
+            }
+            
+            # สร้าง ticket แยกตามแต่ละประเภท
+            for ng_type, detections_list in ng_by_type.items():
+                rule_id = rule_mapping[ng_type]
+                count = len(detections_list)
+                type_name = type_names[ng_type]
+                
+                print(f"🔄 [Database] Creating ticket for {type_name} (RuleID={rule_id}, Count={count})")
+                
+                ticket_id = insert_ng_ticket(camera_id, location, rule_id, severity)
+                
+                if ticket_id:
+                    ticket_ids.append(ticket_id)
+                    print(f"✅ [Database] Ticket created: TicketID={ticket_id}, RuleID={rule_id}, Type={type_name}, Count={count}")
+                    
+                    evidence_saved = False
+                    
+                    if annotated_path and os.path.exists(annotated_path):
+                        success = insert_ng_evidence(ticket_id, annotated_path, f"Annotated Image - {type_name}")
+                        if success:
+                            print(f"✅ [Database] Annotated image evidence saved for Ticket {ticket_id}")
+                            evidence_saved = True
+                        else:
+                            print(f"❌ [Database] Failed to save annotated image evidence for Ticket {ticket_id}")
+                    else:
+                        print(f"⚠️ [Camera {camera_id+1}] Annotated path not available: {annotated_path}")
+                    
+                    if original_path and os.path.exists(original_path):
+                        success = insert_ng_evidence(ticket_id, original_path, f"Original Image - {type_name}")
+                        if success:
+                            print(f"✅ [Database] Original image evidence saved for Ticket {ticket_id}")
+                            evidence_saved = True
+                        else:
+                            print(f"❌ [Database] Failed to save original image evidence for Ticket {ticket_id}")
+                    else:
+                        print(f"⚠️ [Camera {camera_id+1}] Original path not available: {original_path}")
+                    
+                    if not evidence_saved:
+                        print(f"⚠️ [Database] No evidence was saved for Ticket {ticket_id}")
+                else:
+                    print(f"⚠️ [Database] Failed to create ticket for {type_name}")
+            
+            if not ticket_ids:
+                print(f"⚠️ [Database] No tickets were created")
+                
+        except Exception as db_error:
+            print(f"❌ [Database] Error saving to database: {db_error}")
+            import traceback
+            traceback.print_exc()
         
         image_paths = {}
         if SAVE_ORIGINAL:
@@ -517,84 +784,27 @@ def save_ng_image(original_frame, annotated_frame, camera_id, detections):
         if SAVE_ANNOTATED:
             image_paths['annotated'] = annotated_path
         
-        send_email_alert(camera_id, ng_count, image_paths, ng_detections)
+        # ส่งอีเมลแจ้งเตือน
+        email_sent = send_email_alert(camera_id, ng_count, image_paths, ng_detections)
+        
+        # อัพเดท ticket status ทุก ticket ถ้าส่งอีเมลสำเร็จ
+        if ticket_ids and email_sent:
+            try:
+                notified_emails = ', '.join(RECIPIENT_EMAILS + CC_EMAILS)
+                for ticket_id in ticket_ids:
+                    success = update_ticket_status(ticket_id, 'Notified', notified_emails)
+                    if success:
+                        print(f"✅ [Database] Ticket {ticket_id} status updated to 'Notified'")
+            except Exception as e:
+                print(f"❌ [Database] Error updating ticket status: {e}")
         
         return True
         
     except Exception as e:
         print(f"❌ Error saving NG image: {e}")
+        import traceback
+        traceback.print_exc()
         return False
-    
-def insert_ng_ticket_to_db(camera_id, ng_detections, annotated_path, original_path):
-    """บันทึก NG Ticket และ Evidence ลง Database"""
-    conn = get_db_connection()
-    if not conn:
-        print("❌ Cannot connect to database")
-        return None
-    
-    try:
-        cursor = conn.cursor()
-        
-        # 1. สร้าง NG Ticket
-        detected_time = datetime.now()
-        location = f"Camera {camera_id + 1} - Slitting Process"
-        
-        # สร้างรายละเอียด detection
-        details = ", ".join([f"{d.get('classified_as')}" for d in ng_detections])
-        
-        insert_ticket = """
-        INSERT INTO ppe_NGTicket 
-        (DetectedTime, Location, RuleID, Severity, Status, NotifiedEmail, CreatedBy, CreatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        
-        cursor.execute(insert_ticket, (
-            detected_time,
-            location,
-            1,  # RuleID - ปรับตามกฎที่ต้องการ
-            'High',  # Severity
-            'Open',  # Status
-            ','.join(RECIPIENT_EMAILS),
-            'CCTV_System',
-            detected_time
-        ))
-        
-        # ดึง TicketID ที่เพิ่งสร้าง
-        cursor.execute("SELECT @@IDENTITY AS TicketID")
-        ticket_id = cursor.fetchone()[0]
-        
-        # 2. บันทึกไฟล์หลักฐาน
-        if annotated_path:
-            insert_evidence = """
-            INSERT INTO ppe_NGEvidence (TicketID, FilePath, FileType, CreatedAt)
-            VALUES (?, ?, ?, ?)
-            """
-            cursor.execute(insert_evidence, (
-                ticket_id,
-                annotated_path,
-                'annotated',
-                detected_time
-            ))
-        
-        if original_path:
-            cursor.execute(insert_evidence, (
-                ticket_id,
-                original_path,
-                'original',
-                detected_time
-            ))
-        
-        conn.commit()
-        print(f"✅ Ticket {ticket_id} saved to database")
-        
-        return ticket_id
-        
-    except Exception as e:
-        print(f"❌ Database insert error: {e}")
-        conn.rollback()
-        return None
-    finally:
-        conn.close()
 
 def classify_object(frame, bbox, detected_class):
     """Classify cropped object using classification model"""
@@ -890,9 +1100,19 @@ def camera_reader_with_detection(index: int, url: str):
                         if alert_timestamp:
                             alert_timestamps[index] = alert_timestamp
                     
-                    if has_ng:
-                        save_ng_image(frame.copy(), annotated_frame.copy(), index, detections)
-                        play_alert_sound(index)
+                    # ⭐ ตรวจสอบ consecutive NG frames
+                    with ng_frame_lock:
+                        if has_ng:
+                            consecutive_ng_frames[index] += 1
+                            print(f"📊 [Camera {index+1}] Consecutive NG frames: {consecutive_ng_frames[index]}/{CONSECUTIVE_NG_THRESHOLD}")
+                            
+                            if consecutive_ng_frames[index] >= CONSECUTIVE_NG_THRESHOLD:
+                                save_ng_image(frame.copy(), annotated_frame.copy(), index, detections)
+                                play_alert_sound(index)
+                        else:
+                            if consecutive_ng_frames[index] > 0:
+                                print(f"🔄 [Camera {index+1}] NG streak broken. Resetting counter.")
+                            consecutive_ng_frames[index] = 0
                         
                 except Exception as e:
                     print(f"[Camera {index}] Detection error: {e}")
@@ -955,15 +1175,6 @@ async def startup_event():
     print(f"\n{'='*60}")
     print(f"🚀 Starting CCTV System")
     print(f"{'='*60}")
-    print("🔌 Testing database connection...")
-    if test_db_connection():
-        print(f"📊 Database: {DB_CONFIG['database']} @ {DB_CONFIG['server']}")
-    else:
-        print("⚠️ Warning: Database connection failed - continuing without DB")
-    
-    print(f"NG Images Directory: {os.path.abspath(NG_SAVE_DIR)}")
-    print(f"{'='*60}\n")
-    
     print(f"NG Images Directory: {os.path.abspath(NG_SAVE_DIR)}")
     print(f"NG Cooldown: {NG_COOLDOWN} seconds")
     print(f"Save Original: {SAVE_ORIGINAL}")
@@ -1342,41 +1553,447 @@ async def test_email_simple():
             "details": str(e)
         }
 
-# ---- DATABASE TEST ENDPOINTS ----
-@app.get("/api/db/test")
-async def test_database():
+# ---- DATABASE TEST ----
+@app.get("/api/database/test")
+async def test_database_connection():
     """ทดสอบการเชื่อมต่อ Database"""
     conn = get_db_connection()
-    if not conn:
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT @@VERSION")
+            version = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
+            
+            return {
+                "success": True,
+                "message": "Database connection successful",
+                "server": DB_SERVER,
+                "database": DB_DATABASE,
+                "version": version[:100]  # First 100 chars
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    else:
         return {
             "success": False,
-            "message": "Cannot connect to database",
-            "config": {
-                "server": DB_CONFIG['server'],
-                "database": DB_CONFIG['database'],
-                "driver": DB_CONFIG['driver']
-            }
+            "error": "Cannot connect to database"
         }
-    
+
+@app.get("/api/rules")
+async def get_rules():
+    """ดึงรายการ PPE Rules"""
+    rules = get_active_rules()
+    return {
+        "success": True,
+        "count": len(rules),
+        "rules": [
+            {
+                "rule_id": r[0],
+                "name": r[1],
+                "description": r[2],
+                "is_required": r[3]
+            } for r in rules
+        ]
+    }
+
+@app.get("/api/emails")
+async def get_emails():
+    """ดึงรายการ Email ที่ active"""
+    emails = get_notification_emails()
+    return {
+        "success": True,
+        "count": len(emails),
+        "emails": emails
+    }
+
+@app.post("/api/database/initialize/rules")
+async def initialize_rules():
+    """สร้างข้อมูล Rules เริ่มต้นใน ppe_RuleMaster"""
     try:
+        conn = get_db_connection()
+        if not conn:
+            return {
+                "success": False,
+                "error": "Cannot connect to database"
+            }
+        
         cursor = conn.cursor()
-        cursor.execute("SELECT @@VERSION")
-        version = cursor.fetchone()[0]
+        
+        # ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+        cursor.execute("SELECT COUNT(*) FROM ppe_RuleMaster")
+        existing_count = cursor.fetchone()[0]
+        
+        if existing_count > 0:
+            cursor.close()
+            conn.close()
+            return {
+                "success": True,
+                "message": f"Rules already exist ({existing_count} rules)",
+                "existing_count": existing_count
+            }
+        
+        # Insert default rules
+        rules = [
+            (1, 'PPE Detection Rule', 'Detect and classify Personal Protective Equipment usage', 1, 1),
+            (2, 'Safety Glove Required', 'Workers must wear safety gloves in production area', 1, 1),
+            (3, 'Safety Shoe Required', 'Workers must wear safety shoes in work area', 1, 1),
+            (4, 'Safety Glasses Required', 'Workers must wear safety glasses for eye protection', 1, 1),
+            (5, 'Safety Shirt Required', 'Workers must wear proper safety clothing', 1, 1)
+        ]
+        
+        # Enable IDENTITY_INSERT
+        cursor.execute("SET IDENTITY_INSERT ppe_RuleMaster ON")
+        
+        insert_query = """
+        INSERT INTO ppe_RuleMaster (RuleID, RuleName, RuleDescription, IsRequired, Status)
+        VALUES (?, ?, ?, ?, ?)
+        """
+        
+        inserted_count = 0
+        for rule in rules:
+            try:
+                cursor.execute(insert_query, rule)
+                inserted_count += 1
+            except Exception as e:
+                print(f"⚠️ Error inserting rule {rule[0]}: {e}")
+        
+        # Disable IDENTITY_INSERT
+        cursor.execute("SET IDENTITY_INSERT ppe_RuleMaster OFF")
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
         
         return {
             "success": True,
-            "message": "Database connected successfully",
-            "server_version": version,
-            "config": {
-                "server": DB_CONFIG['server'],
-                "database": DB_CONFIG['database']
-            }
+            "message": f"Successfully initialized {inserted_count} rules",
+            "inserted_count": inserted_count,
+            "rules": [
+                {
+                    "rule_id": r[0],
+                    "rule_name": r[1],
+                    "description": r[2]
+                } for r in rules
+            ]
         }
+        
     except Exception as e:
-        return {"success": False, "error": str(e)}
-    finally:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+        
+@app.post("/api/database/initialize/emails")
+async def initialize_emails():
+    """สร้างข้อมูล Email เริ่มต้นใน sys_EmailMaster"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {
+                "success": False,
+                "error": "Cannot connect to database"
+            }
+        
+        cursor = conn.cursor()
+        
+        # ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+        cursor.execute("SELECT COUNT(*) FROM sys_EmailMaster")
+        existing_count = cursor.fetchone()[0]
+        
+        if existing_count > 0:
+            cursor.close()
+            conn.close()
+            return {
+                "success": True,
+                "message": f"Emails already exist ({existing_count} emails)",
+                "existing_count": existing_count
+            }
+        
+        # Insert default emails (จากค่า config ที่มีอยู่)
+        emails_to_insert = []
+        
+        # เอาจาก RECIPIENT_EMAILS และ CC_EMAILS
+        for email in RECIPIENT_EMAILS:
+            name = email.split('@')[0].replace('.', ' ').title()
+            emails_to_insert.append((email, name, 'Engineering', 1))
+        
+        for email in CC_EMAILS:
+            name = email.split('@')[0].replace('.', ' ').title()
+            emails_to_insert.append((email, name, 'Engineering', 1))
+        
+        insert_query = """
+        INSERT INTO sys_EmailMaster (EmailAddress, Name, Role, IsActive)
+        VALUES (?, ?, ?, ?)
+        """
+        
+        inserted_count = 0
+        for email_data in emails_to_insert:
+            try:
+                cursor.execute(insert_query, email_data)
+                inserted_count += 1
+            except Exception as e:
+                print(f"⚠️ Error inserting email {email_data[0]}: {e}")
+        
+        conn.commit()
+        cursor.close()
         conn.close()
+        
+        return {
+            "success": True,
+            "message": f"Successfully initialized {inserted_count} emails",
+            "inserted_count": inserted_count,
+            "emails": [
+                {
+                    "email": e[0],
+                    "name": e[1],
+                    "role": e[2]
+                } for e in emails_to_insert
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
+@app.post("/api/database/initialize/all")
+async def initialize_all():
+    """Initialize ทั้ง Rules และ Emails พร้อมกัน"""
+    results = {
+        "success": True,
+        "rules": None,
+        "emails": None,
+        "errors": []
+    }
+    
+    # Initialize Rules
+    try:
+        rules_result = await initialize_rules()
+        results["rules"] = rules_result
+        if not rules_result.get("success"):
+            results["success"] = False
+            results["errors"].append("Failed to initialize rules")
+    except Exception as e:
+        results["success"] = False
+        results["errors"].append(f"Rules error: {str(e)}")
+    
+    # Initialize Emails
+    try:
+        emails_result = await initialize_emails()
+        results["emails"] = emails_result
+        if not emails_result.get("success"):
+            results["success"] = False
+            results["errors"].append("Failed to initialize emails")
+    except Exception as e:
+        results["success"] = False
+        results["errors"].append(f"Emails error: {str(e)}")
+    
+    return results
+
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats():
+    """ดึงสถิติหลักของ Dashboard: วันนี้, เมื่อวาน, และ Total NG"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"success": False, "error": "Cannot connect to database"}
+        
+        cursor = conn.cursor()
+        
+        # Today's detections
+        cursor.execute("""
+            SELECT COUNT(*) 
+            FROM ppe_NGTicket 
+            WHERE CAST(CreatedDate AS DATE) = CAST(GETDATE() AS DATE)
+        """)
+        today_count = cursor.fetchone()[0]
+        
+        # Yesterday's detections
+        cursor.execute("""
+            SELECT COUNT(*) 
+            FROM ppe_NGTicket 
+            WHERE CAST(CreatedDate AS DATE) = CAST(DATEADD(day, -1, GETDATE()) AS DATE)
+        """)
+        yesterday_count = cursor.fetchone()[0]
+        
+        # Total NG
+        cursor.execute("SELECT COUNT(*) FROM ppe_NGTicket")
+        total_ng = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "todayDetections": today_count,
+            "yesterdayDetections": yesterday_count,
+            "totalNG": total_ng
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/api/dashboard/ppe-status")
+async def get_ppe_status():
+    """ดึงสถิติ PPE วันนี้ แยกเป็น OK และ NG"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"success": False, "error": "Cannot connect to database"}
+        
+        cursor = conn.cursor()
+        
+        # NG count วันนี้
+        cursor.execute("""
+            SELECT COUNT(*) 
+            FROM ppe_NGTicket 
+            WHERE CAST(CreatedDate AS DATE) = CAST(GETDATE() AS DATE)
+        """)
+        ng_count = cursor.fetchone()[0]
+        
+        # สมมติว่า OK คือจำนวนที่ไม่ใช่ NG (อาจต้องปรับตาม logic จริง)
+        # ถ้ามี table สำหรับ OK ให้ query จาก table นั้น
+        # ตัวอย่างนี้จะคำนวณแบบสมมติ: ถ้ามี NG 15 ก็ให้ OK เป็น 85 (รวม 100%)
+        total_detections = max(ng_count * 6, 100)  # สมมติว่ามี detection ทั้งหมด
+        ok_count = total_detections - ng_count
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "data": [
+                {"name": "OK", "value": ok_count, "color": "#10B981"},
+                {"name": "NG", "value": ng_count, "color": "#DC2626"}
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+    
+@app.get("/api/dashboard/rule-violations")
+async def get_rule_violations():
+    """ดึงจำนวนการละเมิดแยกตามประเภท PPE ที่ detect เจอ"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"success": False, "error": "Cannot connect to database"}
+        
+        cursor = conn.cursor()
+        
+        # Query นับจำนวนการ detect แต่ละประเภทจาก RuleID
+        cursor.execute("""
+            SELECT 
+                RuleID,
+                COUNT(*) as DetectionCount
+            FROM ppe_NGTicket
+            WHERE CAST(CreatedDate AS DATE) = CAST(GETDATE() AS DATE)
+                AND RuleID IN (2, 3, 4, 5)
+            GROUP BY RuleID
+            ORDER BY RuleID
+        """)
+        
+        results = cursor.fetchall()
+        
+        # Mapping RuleID กับชื่อที่จะแสดง
+        rule_names = {
+            2: "Glove",           # non-safety-glove
+            3: "Shoe",            # non-safety-shoe
+            4: "Glasses",         # non-safety-glasses
+            5: "Shirt"            # non-safety-shirt
+        }
+        
+        # สร้าง dict เก็บผลลัพธ์ (default = 0)
+        violations_dict = {rule_id: 0 for rule_id in [2, 3, 4, 5]}
+        
+        # อัพเดทค่าที่ query ได้
+        for row in results:
+            rule_id = row[0]
+            count = row[1]
+            violations_dict[rule_id] = count
+        
+        # สร้าง response data
+        violations = [
+            {"rule": rule_names[rule_id], "count": violations_dict[rule_id]}
+            for rule_id in sorted(violations_dict.keys())
+        ]
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "data": violations
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+    
+@app.get("/api/dashboard/monthly-summary")
+async def get_monthly_summary():
+    """ดึงสรุป NG รายเดือนของปีปัจจุบัน"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"success": False, "error": "Cannot connect to database"}
+        
+        cursor = conn.cursor()
+        
+        # Query NG count แต่ละเดือนของปีปัจจุบัน
+        cursor.execute("""
+            SELECT 
+                MONTH(CreatedDate) as Month,
+                COUNT(*) as NGCount
+            FROM ppe_NGTicket
+            WHERE YEAR(CreatedDate) = YEAR(GETDATE())
+            GROUP BY MONTH(CreatedDate)
+            ORDER BY MONTH(CreatedDate)
+        """)
+        
+        results = cursor.fetchall()
+        
+        # สร้าง dictionary สำหรับแต่ละเดือน
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        
+        monthly_data = {i+1: 0 for i in range(12)}
+        for row in results:
+            monthly_data[row[0]] = row[1]
+        
+        summary = [
+            {"month": months[i], "count": monthly_data[i+1]}
+            for i in range(12)
+        ]
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "data": summary
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+        
 # ---- STATIC FILES ----
 static_path = Path("./out")
 if static_path.exists():

@@ -2,66 +2,68 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, AlertTriangle, CheckCircle, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
+  BarChart,
+  Bar,
   Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   PieLabelRenderProps,
 } from "recharts";
 
-// Mock Data
-const mockPPEStatusData = [
-  { name: "OK", value: 85, color: "#10B981" },
-  { name: "NG", value: 15, color: "#DC2626" },
-];
-
-const mockMonthlyData = [
-  { month: "Jan", count: 45 },
-  { month: "Feb", count: 52 },
-  { month: "Mar", count: 38 },
-  { month: "Apr", count: 63 },
-  { month: "May", count: 48 },
-  { month: "Jun", count: 55 },
-  { month: "Jul", count: 41 },
-  { month: "Aug", count: 58 },
-  { month: "Sep", count: 47 },
-  { month: "Oct", count: 53 },
-  { month: "Nov", count: 0 },
-  { month: "Dec", count: 0 },
-];
-
-const mockRuleViolations = [
-  { rule: "Safety Gloves", count: 25 },
-  { rule: "Safety Shoes", count: 18 },
-  { rule: "Safety Glasses", count: 15 },
-  { rule: "Safety Shirt", count: 5 },
-];
-
 export default function Dashboard() {
   const router = useRouter();
+  
+  // ✅ States สำหรับเก็บข้อมูลจาก API
   const [stats, setStats] = useState({
-    todayDetections: 15,
-    yesterdayDetections: 12,
-    totalNG: 63,
+    todayDetections: 0,
+    yesterdayDetections: 0,
+    totalNG: 0,
   });
+  
+  const [ppeStatusData, setPpeStatusData] = useState([
+    { name: "OK", value: 0, color: "#10B981" },
+    { name: "NG", value: 0, color: "#DC2626" },
+  ]);
+  
+  const [monthlyData, setMonthlyData] = useState([
+    { month: "Jan", count: 0 },
+    { month: "Feb", count: 0 },
+    { month: "Mar", count: 0 },
+    { month: "Apr", count: 0 },
+    { month: "May", count: 0 },
+    { month: "Jun", count: 0 },
+    { month: "Jul", count: 0 },
+    { month: "Aug", count: 0 },
+    { month: "Sep", count: 0 },
+    { month: "Oct", count: 0 },
+    { month: "Nov", count: 0 },
+    { month: "Dec", count: 0 },
+  ]);
+  
+  const [ruleViolations, setRuleViolations] = useState([
+    { rule: "Safety Gloves", count: 0 },
+    { rule: "Safety Shoes", count: 0 },
+    { rule: "Safety Glasses", count: 0 },
+    { rule: "Safety Shirt", count: 0 },
+  ]);
+  
+  const [loading, setLoading] = useState(true);
+  
   const ruleColors = ["#DC2626", "#F59E0B", "#3B82F6", "#10B981"];
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api";
 
-  // TODO: CALL API
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
+        setLoading(true);
+        
         // Fetch main stats
         const statsResponse = await fetch(`${API_URL}/dashboard/stats`);
         const statsData = await statsResponse.json();
@@ -77,32 +79,46 @@ export default function Dashboard() {
         const ppeResponse = await fetch(`${API_URL}/dashboard/ppe-status`);
         const ppeData = await ppeResponse.json();
         if (ppeData.success) {
-          // setMockPPEStatusData(ppeData.data);
+          setPpeStatusData(ppeData.data);
         }
 
         // Fetch rule violations
         const ruleResponse = await fetch(`${API_URL}/dashboard/rule-violations`);
         const ruleData = await ruleResponse.json();
         if (ruleData.success) {
-          // setMockRuleViolations(ruleData.data);
+          setRuleViolations(ruleData.data);
         }
 
         // Fetch monthly summary
         const monthlyResponse = await fetch(`${API_URL}/dashboard/monthly-summary`);
-        const monthlyData = await monthlyResponse.json();
-        if (monthlyData.success) {
-          // setMockMonthlyData(monthlyData.data);
+        const monthlyDataResponse = await monthlyResponse.json();
+        if (monthlyDataResponse.success) {
+          setMonthlyData(monthlyDataResponse.data);
         }
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchDashboardData();
     const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30s
     return () => clearInterval(interval);
-  }, []);
+  }, [API_URL]);
+
+  // ✅ Loading State
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#09304F] text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-xl">Loading Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-[#09304F] text-white overflow-hidden">
@@ -180,7 +196,7 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
                   <PieChart>
                     <Pie
-                      data={mockPPEStatusData}
+                      data={ppeStatusData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -195,7 +211,7 @@ export default function Dashboard() {
                       dataKey="value"
                       style={{ fontSize: "11px" }}
                     >
-                      {mockPPEStatusData.map((entry, index) => (
+                      {ppeStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -216,7 +232,7 @@ export default function Dashboard() {
               <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
                 <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Frequency of NG Events</h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                  <BarChart data={mockRuleViolations} layout="vertical">
+                  <BarChart data={ruleViolations} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis 
                       type="number" 
@@ -238,7 +254,7 @@ export default function Dashboard() {
                       }}
                     />
                     <Bar dataKey="count">
-                      {mockRuleViolations.map((entry, index) => (
+                      {ruleViolations.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={ruleColors[index % ruleColors.length]} />
                       ))}
                     </Bar>
@@ -255,7 +271,7 @@ export default function Dashboard() {
               <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
                 <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Monthly Summary of NG Events</h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
-                  <BarChart data={mockMonthlyData}>
+                  <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis 
                       dataKey="month" 

@@ -53,7 +53,7 @@ export default function Topbar({ onCameraSelect }: TopbarProps) {
   };
 
   return (
-    <div className="w-full bg-[#0B4A82] text-white flex flex-col sm:flex-row items-center justify-between px-3 sm:px-6 py-2 sm:py-3 gap-3 sm:gap-0">
+    <div className="w-full bg-[#0B4A82] text-white flex flex-col sm:flex-row items-center justify-between px-3 sm:px-4 py-2 gap-2 sm:gap-0">
       {/* Logo */}
       <div className="flex items-center gap-4 sm:gap-8 md:gap-12 lg:gap-16 xl:gap-[0.9in] w-full sm:w-auto justify-between sm:justify-start">
         <img
