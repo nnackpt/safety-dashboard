@@ -28,35 +28,43 @@ export default function Dashboard() {
   });
   
   const [ppeStatusData, setPpeStatusData] = useState([
-    { name: "OK", value: 0, color: "#10B981" },
-    { name: "NG", value: 0, color: "#DC2626" },
+    { name: "OK", value: 0, color: "#47E0C4" },
+    { name: "NG", value: 0, color: "#E66F71" },
   ]);
   
   const [monthlyData, setMonthlyData] = useState([
-    { month: "Jan", count: 0 },
-    { month: "Feb", count: 0 },
-    { month: "Mar", count: 0 },
-    { month: "Apr", count: 0 },
-    { month: "May", count: 0 },
-    { month: "Jun", count: 0 },
-    { month: "Jul", count: 0 },
-    { month: "Aug", count: 0 },
-    { month: "Sep", count: 0 },
-    { month: "Oct", count: 0 },
-    { month: "Nov", count: 0 },
-    { month: "Dec", count: 0 },
+    { month: "Jan", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Feb", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Mar", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Apr", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "May", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Jun", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Jul", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Aug", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Sep", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Oct", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Nov", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
+    { month: "Dec", gloves: 0, glasses: 0, shirt: 0, empty: 1 },
   ]);
+
+  const ppeColors = {
+    gloves: "#E3BCF9",
+    glasses: "#EBA294",
+    shirt: "#FDD573",
+    empty: "#E5E7EB"
+  };
   
   const [ruleViolations, setRuleViolations] = useState([
     { rule: "Safety Gloves", count: 0 },
-    { rule: "Safety Shoes", count: 0 },
     { rule: "Safety Glasses", count: 0 },
     { rule: "Safety Shirt", count: 0 },
+    { rule: "Safety Shoes", count: 0 },
   ]);
   
   const [loading, setLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   
-  const ruleColors = ["#DC2626", "#F59E0B", "#3B82F6", "#10B981"];
+  const ruleColors = ["#E3BCF9", "#EBA294", "#FDD573", "#BCE3EA"];
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api";
 
   useEffect(() => {
@@ -93,13 +101,21 @@ export default function Dashboard() {
         const monthlyResponse = await fetch(`${API_URL}/dashboard/monthly-summary`);
         const monthlyDataResponse = await monthlyResponse.json();
         if (monthlyDataResponse.success) {
-          setMonthlyData(monthlyDataResponse.data);
+          const processedData = monthlyDataResponse.data.map((item: any) => {
+            const hasData = item.gloves > 0 || item.glasses > 0 || item.shirt > 0;
+            return {
+              ...item,
+              empty: hasData ? 0 : 150  // เปลี่ยนจาก 1 เป็น 10 (หรือค่าที่ต้องการ)
+            };
+          });
+          setMonthlyData(processedData);
         }
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
+        setIsInitialLoading(false);
       }
     };
 
@@ -109,7 +125,7 @@ export default function Dashboard() {
   }, [API_URL]);
 
   // ✅ Loading State
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-[#09304F] text-white">
         <div className="text-center">
@@ -121,7 +137,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#09304F] text-white overflow-hidden">
+    <div className="h-screen flex flex-col bg-white text-white overflow-hidden">
       {/* Header */}
       <div className="bg-[#0B4A82] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center">
@@ -143,56 +159,52 @@ export default function Dashboard() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-[1800px] mx-auto p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 lg:gap-4">
+              <div className="bg-white shadow-lg rounded-lg p-4 sm:p-5 border-2 border-gray-200">
                 <div className="flex flex-col">
-                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Today&apos;s Detection</p>
-                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3 text-gray-700">Today&apos;s Detection</p>
+                  <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-4 sm:p-5 shadow-md">
                     <div className="flex items-center justify-between">
-                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
-                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.todayDetections}</span>
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold text-white">NG</span>
+                      <span className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">{stats.todayDetections}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+              <div className="bg-white shadow-lg rounded-lg p-4 sm:p-5 border-2 border-gray-200">
                 <div className="flex flex-col">
-                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Yesterday Detection</p>
-                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3 text-gray-700">Yesterday Detection</p>
+                  <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg p-4 sm:p-5 shadow-md">
                     <div className="flex items-center justify-between">
-                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
-                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.yesterdayDetections}</span>
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold text-white">NG</span>
+                      <span className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">{stats.yesterdayDetections}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
+              <div className="bg-white shadow-lg rounded-lg p-4 sm:p-5 border-2 border-gray-200">
                 <div className="flex flex-col">
-                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3">Total NG</p>
-                  <div className="bg-red-600 border-2 border-white rounded-lg p-3 sm:p-4">
+                  <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3 text-gray-700">Total NG</p>
+                  <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg p-4 sm:p-5 shadow-md">
                     <div className="flex items-center justify-between">
-                      <span className="text-base sm:text-lg lg:text-xl font-semibold">NG</span>
-                      <span className="text-2xl sm:text-3xl lg:text-4xl font-bold">{stats.totalNG}</span>
+                      <span className="text-base sm:text-lg lg:text-xl font-semibold text-white">NG</span>
+                      <span className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">{stats.totalNG}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
           {/* Charts Row 1 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             {/* Today's PPE NG Case */}
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Today&apos;s PPE NG Case</h3>
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+              <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
+                  Today&apos;s PPE NG Case
+                </h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
                   <PieChart>
                     <Pie
@@ -217,9 +229,10 @@ export default function Dashboard() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ 
-                        backgroundColor: "#1E293B", 
-                        border: "1px solid #334155",
-                        fontSize: "12px"
+                        backgroundColor: "#FFFFFF",
+                        border: "1px solid #E5E7EB",
+                        fontSize: "12px",
+                        color: "#000000"
                       }}
                     />
                   </PieChart>
@@ -228,29 +241,32 @@ export default function Dashboard() {
             </div>
 
             {/* Frequency of NG Events */}
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Frequency of NG Events</h3>
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+              <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
+                  Frequency of NG Events
+                </h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
                   <BarChart data={ruleViolations} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis 
                       type="number" 
-                      stroke="#94A3B8" 
+                      stroke="#6B7280" 
                       tick={{ fontSize: 11 }}
                     />
                     <YAxis 
                       dataKey="rule" 
                       type="category" 
-                      stroke="#94A3B8" 
+                      stroke="#6B7280" 
                       width={100}
                       tick={{ fontSize: 10 }}
                     />
                     <Tooltip
                       contentStyle={{ 
-                        backgroundColor: "#1E293B", 
-                        border: "1px solid #334155",
-                        fontSize: "12px"
+                        backgroundColor: "#FFFFFF", 
+                        border: "1px solid #E5E7EB",
+                        fontSize: "12px",
+                        color: "#000000"
                       }}
                     />
                     <Bar dataKey="count">
@@ -267,33 +283,59 @@ export default function Dashboard() {
           {/* Charts Row 2 */}
           <div className="grid grid-cols-1 gap-3 sm:gap-4">
             {/* Monthly Summary of NG Events */}
-            <div className="bg-[#0B4A82] border-2 border-[#005496] p-3 sm:p-4 rounded-lg">
-              <div className="bg-[#09304F] border-2 border-white rounded-lg p-3 sm:p-4">
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3">Monthly Summary of NG Events</h3>
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+              <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
+                <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
+                  Monthly Summary of NG Events
+                </h3>
                 <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
                   <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis 
                       dataKey="month" 
-                      stroke="#94A3B8" 
+                      stroke="#6B7280" 
                       height={40}
                       tick={{ fontSize: 11 }}
                     />
                     <YAxis 
-                      stroke="#94A3B8" 
+                      stroke="#6B7280" 
                       tick={{ fontSize: 11 }}
                       width={35}
                     />
                     <Tooltip
                       contentStyle={{ 
-                        backgroundColor: "#1E293B", 
-                        border: "1px solid #334155",
-                        fontSize: "12px"
+                        backgroundColor: "#FFFFFF", 
+                        border: "1px solid #E5E7EB",
+                        fontSize: "12px",
+                        color: "#000000"
+                      }}
+                      formatter={(value: number, name: string) => {
+                        if (name === "Empty") return [null, null];
+                        return [value, name];
                       }}
                     />
-                    <Bar dataKey="count" fill="#3B82F6" />
+                    <Bar dataKey="empty" stackId="a" fill={ppeColors.empty} barSize={65} name="Empty" />
+                    <Bar dataKey="gloves" stackId="a" fill={ppeColors.gloves} barSize={65} name="Gloves" />
+                    <Bar dataKey="glasses" stackId="a" fill={ppeColors.glasses} barSize={65} name="Glasses" />
+                    <Bar dataKey="shirt" stackId="a" fill={ppeColors.shirt} barSize={65} name="Shirt" />
                   </BarChart>
                 </ResponsiveContainer>
+
+                {/* Legend */}
+                <div className="flex flex-wrap justify-center gap-3 mt-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.gloves}}></div>
+                    <span className="text-xs text-gray-700">Gloves</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.glasses}}></div>
+                    <span className="text-xs text-gray-700">Glasses</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.shirt}}></div>
+                    <span className="text-xs text-gray-700">Shirt</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

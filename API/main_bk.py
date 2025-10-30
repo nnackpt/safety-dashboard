@@ -24,14 +24,9 @@ from dotenv import load_dotenv
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
-from concurrent.futures import ThreadPoolExecutor
-import queue
 
 # Load environment variables
 load_dotenv()
-
-executor = ThreadPoolExecutor(max_workers=3)  # สำหรับ async tasks
-ng_save_queue = queue.Queue(maxsize=10)  # จำกัดขนาด queue
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 USE_HALF_PRECISION = True
@@ -694,121 +689,175 @@ def send_email_alert(camera_id, ng_count, image_paths, ng_detections):
         print(f"❌ Error sending email: {e}")
         return False
 
-def save_ng_image_async(original_frame, annotated_frame, camera_id, detections):
-    """Async wrapper สำหรับบันทึกรูป - ไม่ block main thread"""
+def save_ng_image(original_frame, annotated_frame, camera_id, detections):
+    """Save NG images with timestamp และบันทึกลง Database"""
     try:
-        ng_save_queue.put((original_frame.copy(), annotated_frame.copy(), camera_id, detections), block=False)
-        return True
-    except queue.Full:
-        print(f"⚠️ [Camera {camera_id+1}] NG save queue full, skipping...")
-        return False
-
-def save_ng_image_worker():
-    """Worker thread สำหรับประมวลผล NG images"""
-    while not stop_event.is_set():
+        current_time = time.time()
+        
+        # ตรวจสอบ cooldown
+        with ng_save_lock:
+            if current_time - last_ng_save_time[camera_id] < NG_COOLDOWN:
+                return False
+            last_ng_save_time[camera_id] = current_time
+        
+        # สร้าง timestamp สำหรับชื่อไฟล์
+        timestamp = get_thailand_time().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+        
+        ng_detections = [d for d in detections 
+                        if d.get('classified_as', '').strip().upper() == 'NG' 
+                        or 'non-safety' in d.get('classified_as', '').lower()]
+        ng_count = len(ng_detections)
+        
+        # Debug log
+        print(f"🔍 [Camera {camera_id+1}] Total detections: {len(detections)}, NG/non-safety count: {ng_count}")
+        for d in ng_detections:
+            print(f"   - {d.get('class')} → {d.get('classified_as')} (conf: {d.get('classification_conf')})")
+        
+        base_filename = f"cam{camera_id+1}_ng{ng_count}_{timestamp}"
+        
+        # บันทึกภาพต้นฉบับ
+        original_path = None
+        if SAVE_ORIGINAL:
+            original_path = os.path.join(NG_SAVE_DIR, "original", f"{base_filename}_orig.jpg")
+            cv2.imwrite(original_path, original_frame)
+        
+        # บันทึกภาพที่มี annotation
+        annotated_path = None
+        if SAVE_ANNOTATED:
+            annotated_path = os.path.join(NG_SAVE_DIR, "annotated", f"{base_filename}_anno.jpg")
+            
+            info_frame = annotated_frame.copy()
+            
+            cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 0), -1)
+            cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 255), 3)
+            
+            cv2.putText(info_frame, f"NG DETECTED - Camera {camera_id+1}", (20, 40),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            cv2.putText(info_frame, f"Time: {get_thailand_time().strftime('%Y-%m-%d %H:%M:%S')}", (20, 70),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(info_frame, f"NG Count: {ng_count}", (20, 100),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            
+            cv2.imwrite(annotated_path, info_frame)
+        
+        ng_saved_count[camera_id] += 1
+        
+        print(f"📸 [Camera {camera_id+1}] NG image saved: {base_filename} (Total NG: {ng_count})")
+        
+        # บันทึกลง Database - แยก Ticket ตามประเภท NG
+        ticket_ids = []
         try:
-            item = ng_save_queue.get(timeout=1)
-            if item is None:
-                break
+            location = f"Slitting Process - Camera {camera_id+1}"
+            severity = "High"  # กำหนด High ตลอด
             
-            original_frame, annotated_frame, camera_id, detections = item
+            # แยก NG ตามประเภท
+            ng_by_type = {}
+            for d in ng_detections:
+                classified = d.get('classified_as', '').lower()
+                if 'non-safety-glove' in classified:
+                    ng_by_type.setdefault('glove', []).append(d)
+                elif 'non-safety-shoe' in classified:
+                    ng_by_type.setdefault('shoe', []).append(d)
+                elif 'non-safety-glasses' in classified:
+                    ng_by_type.setdefault('glasses', []).append(d)
+                elif 'non-safety-shirt' in classified:
+                    ng_by_type.setdefault('shirt', []).append(d)
+                else:
+                    # กรณีที่เป็น NG ทั่วไป (ไม่ตรงกับประเภทที่กำหนด)
+                    ng_by_type.setdefault('general', []).append(d)
             
-            # ทำงานตามเดิม (ใช้โค้ดเดิมใน save_ng_image)
-            current_time = time.time()
+            # Rule ID mapping
+            rule_mapping = {
+                'glove': 2,
+                'shoe': 3,
+                'glasses': 4,
+                'shirt': 5,
+                'general': 1  # default rule สำหรับ NG ทั่วไป
+            }
             
-            with ng_save_lock:
-                if current_time - last_ng_save_time[camera_id] < NG_COOLDOWN:
-                    ng_save_queue.task_done()
-                    continue
-                last_ng_save_time[camera_id] = current_time
+            # ชื่อประเภทสำหรับแสดงผล
+            type_names = {
+                'glove': 'Non-Safety Glove',
+                'shoe': 'Non-Safety Shoe',
+                'glasses': 'Non-Safety Glasses',
+                'shirt': 'Non-Safety Shirt',
+                'general': 'PPE Detection'
+            }
             
-            timestamp = get_thailand_time().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-            
-            ng_detections = [d for d in detections 
-                            if d.get('classified_as', '').strip().upper() == 'NG' 
-                            or 'non-safety' in d.get('classified_as', '').lower()]
-            ng_count = len(ng_detections)
-            
-            base_filename = f"cam{camera_id+1}_ng{ng_count}_{timestamp}"
-            
-            original_path = None
-            if SAVE_ORIGINAL:
-                original_path = os.path.join(NG_SAVE_DIR, "original", f"{base_filename}_orig.jpg")
-                cv2.imwrite(original_path, original_frame)
-            
-            annotated_path = None
-            if SAVE_ANNOTATED:
-                annotated_path = os.path.join(NG_SAVE_DIR, "annotated", f"{base_filename}_anno.jpg")
-                info_frame = annotated_frame.copy()
-                cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 0), -1)
-                cv2.rectangle(info_frame, (10, 10), (600, 120), (0, 0, 255), 3)
-                cv2.putText(info_frame, f"NG DETECTED - Camera {camera_id+1}", (20, 40),
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                cv2.putText(info_frame, f"Time: {get_thailand_time().strftime('%Y-%m-%d %H:%M:%S')}", (20, 70),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                cv2.putText(info_frame, f"NG Count: {ng_count}", (20, 100),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                cv2.imwrite(annotated_path, info_frame)
-            
-            ng_saved_count[camera_id] += 1
-            print(f"📸 [Camera {camera_id+1}] NG image saved: {base_filename}")
-            
-            # Database และ Email - ทำแบบ async
-            ticket_ids = []
-            try:
-                location = f"Slitting Process - Camera {camera_id+1}"
-                severity = "High"
+            # สร้าง ticket แยกตามแต่ละประเภท
+            for ng_type, detections_list in ng_by_type.items():
+                rule_id = rule_mapping[ng_type]
+                count = len(detections_list)
+                type_name = type_names[ng_type]
                 
-                ng_by_type = {}
-                for d in ng_detections:
-                    classified = d.get('classified_as', '').lower()
-                    if 'non-safety-glove' in classified:
-                        ng_by_type.setdefault('glove', []).append(d)
-                    elif 'non-safety-shoe' in classified:
-                        ng_by_type.setdefault('shoe', []).append(d)
-                    elif 'non-safety-glasses' in classified:
-                        ng_by_type.setdefault('glasses', []).append(d)
-                    elif 'non-safety-shirt' in classified:
-                        ng_by_type.setdefault('shirt', []).append(d)
-                    else:
-                        ng_by_type.setdefault('general', []).append(d)
+                print(f"🔄 [Database] Creating ticket for {type_name} (RuleID={rule_id}, Count={count})")
                 
-                rule_mapping = {'glove': 2, 'shoe': 3, 'glasses': 4, 'shirt': 5, 'general': 1}
-                type_names = {'glove': 'Non-Safety Glove', 'shoe': 'Non-Safety Shoe', 
-                             'glasses': 'Non-Safety Glasses', 'shirt': 'Non-Safety Shirt', 
-                             'general': 'PPE Detection'}
+                ticket_id = insert_ng_ticket(camera_id, location, rule_id, severity)
                 
-                for ng_type, detections_list in ng_by_type.items():
-                    rule_id = rule_mapping[ng_type]
-                    ticket_id = insert_ng_ticket(camera_id, location, rule_id, severity)
+                if ticket_id:
+                    ticket_ids.append(ticket_id)
+                    logging.info(f"✅ Ticket created: TicketID={ticket_id}, RuleID={rule_id}, Type={type_name}, Count={count}")
                     
-                    if ticket_id:
-                        ticket_ids.append(ticket_id)
-                        if annotated_path and os.path.exists(annotated_path):
-                            insert_ng_evidence(ticket_id, annotated_path, "Annotated Image")
-                        if original_path and os.path.exists(original_path):
-                            insert_ng_evidence(ticket_id, original_path, "Original Image")
+                    evidence_saved = False
+                    
+                    if annotated_path and os.path.exists(annotated_path):
+                        success = insert_ng_evidence(ticket_id, annotated_path, "Annotated Image")
+                        if success:
+                            evidence_saved = True
+                        else:
+                            logging.error(f"Failed to save annotated image evidence for Ticket {ticket_id}")
+                    else:
+                        logging.warning(f"Annotated path not available: {annotated_path}")
+                    
+                    if original_path and os.path.exists(original_path):
+                        success = insert_ng_evidence(ticket_id, original_path, "Original Image")
+                        if success:
+                            evidence_saved = True
+                        else:
+                            logging.error(f"Failed to save original image evidence for Ticket {ticket_id}")
+                    else:
+                        logging.warning(f"Original path not available: {original_path}")
+                    
+                    if not evidence_saved:
+                        logging.warning(f"No evidence was saved for Ticket {ticket_id}")
+                else:
+                    logging.warning(f"Failed to create ticket for {type_name}")
                             
-            except Exception as db_error:
-                print(f"❌ [Database] Error: {db_error}")
-            
-            # ส่ง Email แบบ async
-            image_paths = {}
-            if SAVE_ORIGINAL:
-                image_paths['original'] = original_path
-            if SAVE_ANNOTATED:
-                image_paths['annotated'] = annotated_path
-            
-            executor.submit(send_email_alert, camera_id, ng_count, image_paths, ng_detections)
-            
-            ng_save_queue.task_done()
-            
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f"❌ Error in NG save worker: {e}")
+            if not ticket_ids:
+                print(f"⚠️ [Database] No tickets were created")
+                
+        except Exception as db_error:
+            print(f"❌ [Database] Error saving to database: {db_error}")
             import traceback
             traceback.print_exc()
+        
+        image_paths = {}
+        if SAVE_ORIGINAL:
+            image_paths['original'] = original_path
+        if SAVE_ANNOTATED:
+            image_paths['annotated'] = annotated_path
+        
+        # ส่งอีเมลแจ้งเตือน
+        email_sent = send_email_alert(camera_id, ng_count, image_paths, ng_detections)
+        
+        # อัพเดท ticket status ทุก ticket ถ้าส่งอีเมลสำเร็จ
+        if ticket_ids and email_sent:
+            try:
+                notified_emails = ', '.join(RECIPIENT_EMAILS + CC_EMAILS)
+                for ticket_id in ticket_ids:
+                    success = update_ticket_status(ticket_id, 'Notified', notified_emails)
+                    if success:
+                        print(f"✅ [Database] Ticket {ticket_id} status updated to 'Notified'")
+            except Exception as e:
+                print(f"❌ [Database] Error updating ticket status: {e}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error saving NG image: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 def classify_object(frame, bbox, detected_class):
     """Classify cropped object using classification model"""
@@ -1057,6 +1106,7 @@ def draw_detections_3stage(frame, person_results, camera_id=0):
 def camera_reader_with_detection(index: int, url: str):
     cap = cv2.VideoCapture(url)
     
+    # ⭐ Optimize capture settings
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     cap.set(cv2.CAP_PROP_FPS, 15)
     
@@ -1066,97 +1116,69 @@ def camera_reader_with_detection(index: int, url: str):
     
     print(f"[Camera {index}] Started streaming from {url}")
     frame_count = 0
-    detection_offset = index * CAMERA_OFFSET
-    consecutive_errors = 0
-    max_consecutive_errors = 10
     
-    # ⭐ เพิ่ม: Track performance
-    last_log_time = time.time()
-    frames_processed = 0
+    # ⭐ แต่ละกล้องเริ่ม offset คนละจุด
+    detection_offset = index * CAMERA_OFFSET
     
     while not stop_event.is_set():
-        try:
-            ret, frame = cap.read()
-            if not ret or frame is None:
-                consecutive_errors += 1
-                if consecutive_errors >= max_consecutive_errors:
-                    print(f"⚠️ [Camera {index}] Too many errors, reconnecting...")
-                    cap.release()
-                    time.sleep(2)
-                    cap = cv2.VideoCapture(url)
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                    cap.set(cv2.CAP_PROP_FPS, 15)
-                    consecutive_errors = 0
-                time.sleep(0.1)
-                continue
-            
-            consecutive_errors = 0
-            frames_processed += 1
-            
-            # ⭐ Log FPS ทุก 5 วินาที
-            current_time = time.time()
-            if current_time - last_log_time >= 5.0:
-                fps = frames_processed / (current_time - last_log_time)
-                print(f"📊 [Camera {index+1}] FPS: {fps:.1f}, Frames: {frame_count}")
-                last_log_time = current_time
-                frames_processed = 0
-            
-            with frame_locks[index]:
-                latest_frames[index] = frame.copy()
-            
-            if (frame_count + detection_offset) % DETECTION_INTERVAL == 0:
-                if person_model is not None and model is not None:
-                    try:
-                        detection_start = time.time()
-                        
-                        person_results = person_model(
-                            frame,
-                            device=DEVICE,
-                            verbose=False,
-                            half=USE_HALF_PRECISION,
-                            imgsz=640
-                        )
-                        
-                        detection_time = time.time() - detection_start
-                        if detection_time > 1.0:
-                            print(f"⚠️ [Camera {index}] Slow detection: {detection_time:.2f}s")
-                        
-                        annotated_frame, detections, has_ng, alert_timestamp = draw_detections_3stage(
-                            frame, person_results, camera_id=index
-                        )
-                        
-                        with frame_locks[index]:
-                            detected_frames[index] = annotated_frame
-                            detection_results[index] = detections
-                            if alert_timestamp:
-                                alert_timestamps[index] = alert_timestamp
-                        
-                        with ng_frame_lock:
-                            if has_ng:
-                                consecutive_ng_frames[index] += 1
-                                
-                                if consecutive_ng_frames[index] >= CONSECUTIVE_NG_THRESHOLD:
-                                    save_ng_image_async(frame.copy(), annotated_frame.copy(), index, detections)
-                                    play_alert_sound(index)
-                            else:
-                                consecutive_ng_frames[index] = 0
-                            
-                    except Exception as e:
-                        print(f"[Camera {index}] Detection error: {e}")
-                        with frame_locks[index]:
-                            detected_frames[index] = frame.copy()
-            else:
-                with frame_locks[index]:
-                    if detected_frames[index] is None:
-                        detected_frames[index] = frame.copy()
-            
-            frame_count += 1
-            time.sleep(0.01)
-            
-        except Exception as e:
-            print(f"❌ [Camera {index}] Unexpected error: {e}")
-            consecutive_errors += 1
+        ret, frame = cap.read()
+        if not ret or frame is None:
             time.sleep(0.1)
+            continue
+        
+        # Store original frame
+        with frame_locks[index]:
+            latest_frames[index] = frame.copy()
+        
+        # ⭐ ตรวจจับเฉพาะทุก N เฟรม + offset ตามกล้อง
+        if (frame_count + detection_offset) % DETECTION_INTERVAL == 0:
+            if person_model is not None and model is not None:
+                try:
+                    # ⭐ ลด imgsz สำหรับ person detection
+                    person_results = person_model(
+                        frame,
+                        device=DEVICE,
+                        verbose=False,
+                        half=USE_HALF_PRECISION,
+                        imgsz=640  # ⭐ ลดจาก default
+                    )
+                    
+                    annotated_frame, detections, has_ng, alert_timestamp = draw_detections_3stage(
+                        frame, person_results, camera_id=index
+                    )
+                    
+                    with frame_locks[index]:
+                        detected_frames[index] = annotated_frame
+                        detection_results[index] = detections
+                        if alert_timestamp:
+                            alert_timestamps[index] = alert_timestamp
+                    
+                    # ⭐ ตรวจสอบ consecutive NG frames
+                    with ng_frame_lock:
+                        if has_ng:
+                            consecutive_ng_frames[index] += 1
+                            print(f"📊 [Camera {index+1}] Consecutive NG frames: {consecutive_ng_frames[index]}/{CONSECUTIVE_NG_THRESHOLD}")
+                            
+                            if consecutive_ng_frames[index] >= CONSECUTIVE_NG_THRESHOLD:
+                                save_ng_image(frame.copy(), annotated_frame.copy(), index, detections)
+                                play_alert_sound(index)
+                        else:
+                            if consecutive_ng_frames[index] > 0:
+                                print(f"🔄 [Camera {index+1}] NG streak broken. Resetting counter.")
+                            consecutive_ng_frames[index] = 0
+                        
+                except Exception as e:
+                    print(f"[Camera {index}] Detection error: {e}")
+                    with frame_locks[index]:
+                        detected_frames[index] = frame.copy()
+        else:
+            # เฟรมที่ไม่ตรวจจับ ใช้ผลลัพธ์เก่า
+            with frame_locks[index]:
+                if detected_frames[index] is None:
+                    detected_frames[index] = frame.copy()
+        
+        frame_count += 1
+        time.sleep(0.01)
     
     cap.release()
     print(f"[Camera {index}] Stopped (processed {frame_count} frames)")
@@ -1212,10 +1234,6 @@ async def startup_event():
     print(f"Save Annotated: {SAVE_ANNOTATED}")
     print(f"{'='*60}\n")
     
-    ng_worker = threading.Thread(target=save_ng_image_worker, daemon=True)
-    ng_worker.start()
-    print("Started NG save worker thread")
-    
     for i, url in enumerate(CAM_URLS):
         t = threading.Thread(target=camera_reader_with_detection, args=(i, url), daemon=True)
         t.start()
@@ -1225,12 +1243,6 @@ async def startup_event():
 async def shutdown_event():
     """Stop all camera threads"""
     stop_event.set()
-    
-    ng_save_queue.put(None)
-    
-    ng_save_queue.join()
-    
-    executor.shutdown(wait=True, cancel_futures=True)
     
     print(f"\n{'='*60}")
     print("📊 NG Detection Statistics")
@@ -1966,10 +1978,9 @@ async def get_rule_violations():
             violations_dict[rule_id] = count
         
         # สร้าง response data
-        custom_order = [2, 4, 5, 3]  # Glove, Glasses, Shirt, Shoe
         violations = [
             {"rule": rule_names[rule_id], "count": violations_dict[rule_id]}
-            for rule_id in custom_order
+            for rule_id in sorted(violations_dict.keys())
         ]
         
         cursor.close()
@@ -1988,7 +1999,7 @@ async def get_rule_violations():
     
 @app.get("/api/dashboard/monthly-summary")
 async def get_monthly_summary():
-    """ดึงสรุป NG รายเดือนแยกตามประเภท PPE ของปีปัจจุบัน"""
+    """ดึงสรุป NG รายเดือนของปีปัจจุบัน"""
     try:
         conn = get_db_connection()
         if not conn:
@@ -1996,17 +2007,15 @@ async def get_monthly_summary():
         
         cursor = conn.cursor()
         
-        # Query NG count แต่ละเดือนแยกตามประเภท
+        # Query NG count แต่ละเดือนของปีปัจจุบัน
         cursor.execute("""
             SELECT 
-                MONTH(t.CreatedDate) as Month,
-                r.RuleName,
+                MONTH(CreatedDate) as Month,
                 COUNT(*) as NGCount
-            FROM ppe_NGTicket t
-            JOIN ppe_RuleMaster r ON t.RuleID = r.RuleID
-            WHERE YEAR(t.CreatedDate) = YEAR(GETDATE())
-            GROUP BY MONTH(t.CreatedDate), r.RuleName
-            ORDER BY MONTH(t.CreatedDate)
+            FROM ppe_NGTicket
+            WHERE YEAR(CreatedDate) = YEAR(GETDATE())
+            GROUP BY MONTH(CreatedDate)
+            ORDER BY MONTH(CreatedDate)
         """)
         
         results = cursor.fetchall()
@@ -2015,37 +2024,12 @@ async def get_monthly_summary():
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         
-        # เตรียมข้อมูลเริ่มต้น
-        monthly_data = {}
-        for i in range(12):
-            monthly_data[i+1] = {
-                "gloves": 0,
-                "glasses": 0,
-                "shirt": 0
-            }
-        
-        # นำข้อมูลจาก database มาใส่
+        monthly_data = {i+1: 0 for i in range(12)}
         for row in results:
-            month_num = row[0]
-            rule_name = row[1]
-            count = row[2]
-            
-            # แปลง RuleName เป็น key ตามชื่อจริงใน database
-            if rule_name == "Safety Glove Required":
-                monthly_data[month_num]["gloves"] = count
-            elif rule_name == "Safety Glasses Required":
-                monthly_data[month_num]["glasses"] = count
-            elif rule_name == "Safety Shirt Required":
-                monthly_data[month_num]["shirt"] = count
+            monthly_data[row[0]] = row[1]
         
-        # สร้าง array สำหรับส่งกลับ
         summary = [
-            {
-                "month": months[i],
-                "gloves": monthly_data[i+1]["gloves"],
-                "glasses": monthly_data[i+1]["glasses"],
-                "shirt": monthly_data[i+1]["shirt"]
-            }
+            {"month": months[i], "count": monthly_data[i+1]}
             for i in range(12)
         ]
         
