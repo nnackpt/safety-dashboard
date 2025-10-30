@@ -17,10 +17,17 @@ import {
   PieLabelRenderProps,
 } from "recharts";
 
+interface MonthlyDataItem {
+  month: string;
+  gloves: number;
+  glasses: number;
+  shirt: number;
+  empty: number;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   
-  // ✅ States สำหรับเก็บข้อมูลจาก API
   const [stats, setStats] = useState({
     todayDetections: 0,
     yesterdayDetections: 0,
@@ -60,6 +67,19 @@ export default function Dashboard() {
     { rule: "Safety Shirt", count: 0 },
     { rule: "Safety Shoes", count: 0 },
   ]);
+
+  const [visiblePPE, setVisiblePPE] = useState({
+    gloves: true,
+    glasses: true,
+    shirt: true,
+  });
+
+  const togglePPEVisibility = (key: 'gloves' | 'glasses' | 'shirt') => {
+    setVisiblePPE(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
   
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -101,11 +121,11 @@ export default function Dashboard() {
         const monthlyResponse = await fetch(`${API_URL}/dashboard/monthly-summary`);
         const monthlyDataResponse = await monthlyResponse.json();
         if (monthlyDataResponse.success) {
-          const processedData = monthlyDataResponse.data.map((item: any) => {
+          const processedData = monthlyDataResponse.data.map((item: MonthlyDataItem) => {
             const hasData = item.gloves > 0 || item.glasses > 0 || item.shirt > 0;
             return {
               ...item,
-              empty: hasData ? 0 : 150  // เปลี่ยนจาก 1 เป็น 10 (หรือค่าที่ต้องการ)
+              empty: hasData ? 0 : 150
             };
           });
           setMonthlyData(processedData);
@@ -163,7 +183,7 @@ export default function Dashboard() {
               <div className="bg-white shadow-lg rounded-lg p-4 sm:p-5 border-2 border-gray-200">
                 <div className="flex flex-col">
                   <p className="text-sm sm:text-base lg:text-lg font-semibold mb-3 text-gray-700">Today&apos;s Detection</p>
-                  <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg p-4 sm:p-5 shadow-md">
+                  <div className="bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg p-4 sm:p-5 shadow-md">
                     <div className="flex items-center justify-between">
                       <span className="text-base sm:text-lg lg:text-xl font-semibold text-white">NG</span>
                       <span className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white">{stats.todayDetections}</span>
@@ -198,9 +218,9 @@ export default function Dashboard() {
             </div>
 
           {/* Charts Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-2">
             {/* Today's PPE NG Case */}
-            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg [&_*]:outline-none [&_*:focus]:outline-none">
               <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
                 <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
                   Today&apos;s PPE NG Case
@@ -218,10 +238,11 @@ export default function Dashboard() {
                         const p = typeof percent === "number" ? (percent * 100).toFixed(0) : "0";
                         return `${n}: ${p}%`;
                       }}
-                      outerRadius="70%"
+                      outerRadius="90%"
                       fill="#8884d8"
                       dataKey="value"
-                      style={{ fontSize: "11px" }}
+                      style={{ fontSize: "16px", fontWeight: '700' }}
+                      isAnimationActive={false}
                     >
                       {ppeStatusData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -241,7 +262,7 @@ export default function Dashboard() {
             </div>
 
             {/* Frequency of NG Events */}
-            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg [&_*]:outline-none [&_*:focus]:outline-none">
               <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
                 <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
                   Frequency of NG Events
@@ -259,7 +280,7 @@ export default function Dashboard() {
                       type="category" 
                       stroke="#6B7280" 
                       width={100}
-                      tick={{ fontSize: 10 }}
+                      tick={{ fontSize: 16 }}
                     />
                     <Tooltip
                       contentStyle={{ 
@@ -283,12 +304,12 @@ export default function Dashboard() {
           {/* Charts Row 2 */}
           <div className="grid grid-cols-1 gap-3 sm:gap-4">
             {/* Monthly Summary of NG Events */}
-            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg">
+            <div className="bg-[#FFFFFF] border-2 border-[#FFFFFF] p-3 sm:p-4 rounded-lg [&_*]:outline-none [&_*:focus]:outline-none">
               <div className="bg-white border-2 border-gray-200 rounded-lg p-3 sm:p-4 shadow-md">
                 <h3 className="text-sm sm:text-base lg:text-lg font-bold mb-2 sm:mb-3 text-gray-800">
                   Monthly Summary of NG Events
                 </h3>
-                <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]">
+                <ResponsiveContainer width="100%" height={200} className="sm:h-[220px] lg:h-[240px]" style={{ outline: 'none' }}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis 
@@ -315,24 +336,64 @@ export default function Dashboard() {
                       }}
                     />
                     <Bar dataKey="empty" stackId="a" fill={ppeColors.empty} barSize={65} name="Empty" />
-                    <Bar dataKey="gloves" stackId="a" fill={ppeColors.gloves} barSize={65} name="Gloves" />
-                    <Bar dataKey="glasses" stackId="a" fill={ppeColors.glasses} barSize={65} name="Glasses" />
-                    <Bar dataKey="shirt" stackId="a" fill={ppeColors.shirt} barSize={65} name="Shirt" />
+                    
+                    {/* แสดง Bar เฉพาะที่เลือก */}
+                    {visiblePPE.gloves && (
+                      <Bar dataKey="gloves" stackId="a" fill={ppeColors.gloves} barSize={65} name="Gloves" />
+                    )}
+                    {visiblePPE.glasses && (
+                      <Bar dataKey="glasses" stackId="a" fill={ppeColors.glasses} barSize={65} name="Glasses" />
+                    )}
+                    {visiblePPE.shirt && (
+                      <Bar dataKey="shirt" stackId="a" fill={ppeColors.shirt} barSize={65} name="Shirt" />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
 
                 {/* Legend */}
                 <div className="flex flex-wrap justify-center gap-3 mt-3">
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.gloves}}></div>
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer select-none transition-opacity hover:opacity-80"
+                    onClick={() => togglePPEVisibility('gloves')}
+                    style={{ opacity: visiblePPE.gloves ? 1 : 0.3 }}
+                  >
+                    <div 
+                      className="w-7 h-7 rounded" 
+                      style={{
+                        backgroundColor: ppeColors.gloves,
+                        border: visiblePPE.gloves ? 'none' : '2px solid #9CA3AF'
+                      }}
+                    ></div>
                     <span className="text-xs text-gray-700">Gloves</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.glasses}}></div>
+                  
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer select-none transition-opacity hover:opacity-80"
+                    onClick={() => togglePPEVisibility('glasses')}
+                    style={{ opacity: visiblePPE.glasses ? 1 : 0.3 }}
+                  >
+                    <div 
+                      className="w-7 h-7 rounded" 
+                      style={{
+                        backgroundColor: ppeColors.glasses,
+                        border: visiblePPE.glasses ? 'none' : '2px solid #9CA3AF'
+                      }}
+                    ></div>
                     <span className="text-xs text-gray-700">Glasses</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded" style={{backgroundColor: ppeColors.shirt}}></div>
+                  
+                  <div 
+                    className="flex items-center gap-1 cursor-pointer select-none transition-opacity hover:opacity-80"
+                    onClick={() => togglePPEVisibility('shirt')}
+                    style={{ opacity: visiblePPE.shirt ? 1 : 0.3 }}
+                  >
+                    <div 
+                      className="w-7 h-7 rounded" 
+                      style={{
+                        backgroundColor: ppeColors.shirt,
+                        border: visiblePPE.shirt ? 'none' : '2px solid #9CA3AF'
+                      }}
+                    ></div>
                     <span className="text-xs text-gray-700">Shirt</span>
                   </div>
                 </div>
