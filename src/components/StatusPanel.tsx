@@ -15,25 +15,33 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
   const shouldShowNG = hasNG || safetyViolations.length > 0;
 
   return (
-    <aside className="h-auto lg:h-full min-h-0 flex flex-col gap-2 sm:gap-3 lg:gap-4">
+    <aside className="h-auto lg:h-full lg:w-64 xl:w-72 min-h-0 flex flex-col gap-1 sm:gap-2 lg:gap-3">
       {/* OK Panel */}
       <div 
-        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-2 sm:border-3 lg:border-4 border-[#005496] flex items-center justify-center ${
-          shouldShowNG ? 'bg-[#CFCFCF]' : 'bg-green-500'
+        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-1 sm:border-2 lg:border-3 flex items-center justify-center ${
+          shouldShowNG 
+            ? 'bg-gray-200 border-gray-300' 
+            : 'bg-green-500 border-green-600'
         }`}
       >
-        <span className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold text-black">
+        <span className={`text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold ${
+          shouldShowNG ? 'text-black' : 'text-black'
+        }`}>
           OK
         </span>
       </div>
 
       {/* NG Panel */}
       <div 
-        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-2 sm:border-3 lg:border-4 border-[#005496] flex items-center justify-center ${
-          shouldShowNG ? 'bg-red-600' : 'bg-[#CFCFCF]'
+        className={`h-20 sm:h-24 lg:h-28 xl:h-32 border-1 sm:border-2 lg:border-3 flex items-center justify-center ${
+          shouldShowNG 
+            ? 'bg-red-500 border-red-600' 
+            : 'bg-gray-200 border-gray-300'
         }`}
       >
-        <span className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold text-black">
+        <span className={`text-3xl sm:text-4xl lg:text-5xl xl:text-6xl leading-none font-extrabold ${
+          shouldShowNG ? 'text-black' : 'text-black'
+        }`}>
           NG
         </span>
       </div>
@@ -48,35 +56,28 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
         </h3>
 
         {/* PPE Icons */}
-        <div className="mt-2 lg:mt-3 grid grid-cols-4 gap-1.5 lg:gap-2 xl:gap-3 justify-items-center flex-shrink-0">
-          {[
-            { src: "safety-footerwear.png", alt: "Safety Footwear", violationType: "shoe" },
-            { src: "wear-goggle.png", alt: "Wear Goggle", violationType: "glasses" },
-            { src: "wear-hand-protection.png", alt: "Wear Hand Protection", violationType: "glove" },
-            { src: "wear-vest.png", alt: "Wear Vest", violationType: "shirt" },
-          ].map(({ src, alt, violationType }) => {
-            const hasViolation = violationTypes[violationType as keyof typeof violationTypes];
-            return (
-              <div
-                key={src}
-                className={`w-8 sm:w-10 lg:w-12 xl:w-14 rounded-[3px] bg-[#EDEDED] shadow-[0_2px_0_rgba(0,0,0,0.25)] sm:shadow-[0_3px_0_rgba(0,0,0,0.25)] p-1 lg:p-1.5 transition-all ${
-                  hasViolation 
-                    ? 'border-2 sm:border-3 border-red-600 ring-1 ring-red-600 ring-offset-1' 
-                    : 'border border-[#BFBFBF]'
-                }`}
-              >
-                <div className="w-full aspect-square rounded-[2px] sm:rounded-[3px] md:rounded-[4px] overflow-hidden flex items-center justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt={alt}
-                    className="max-w-full max-h-full object-contain block"
-                  />
-                </div>
+        <div className="mt-3 grid grid-cols-4 gap-2 lg:gap-3 justify-items-center">
+        {[
+          { src: "safety-footerwear.png", alt: "Safety Footwear", violationType: "shoe" },
+          { src: "wear-goggle.png", alt: "Wear Goggle", violationType: "glasses" },
+          { src: "wear-hand-protection.png", alt: "Wear Hand Protection", violationType: "glove" },
+          { src: "wear-vest.png", alt: "Wear Vest", violationType: "shirt" },
+        ].map(({ src, alt, violationType }) => {
+          const hasViolation = violationTypes[violationType as keyof typeof violationTypes];
+          return (
+            <div
+              key={src}
+              className={`w-10 sm:w-12 lg:w-14 xl:w-16 rounded border transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md
+                ${hasViolation ? 'border-red-300 ring-2 ring-red-200 bg-red-50' : 'border-gray-200 bg-white shadow-sm'}`}
+            >
+              <div className="w-full aspect-square rounded-lg overflow-hidden flex items-center justify-center p-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={alt} className="max-w-full max-h-full object-contain block" />
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
+      </div>
 
         {/* WARNING BANNER */}
         <div className="mt-2 sm:mt-3 lg:mt-4 xl:mt-6 flex-shrink-0">
@@ -91,7 +92,7 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
                   alt="Warning" 
                   className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 xl:w-10 xl:h-10 object-contain" 
                 />
-                <span className="text-[#FBBF24] text-base sm:text-lg md:text-xl lg:text-2xl xl:text-[30px] leading-none font-extrabold tracking-wide sm:tracking-widest">
+                <span className="text-yellow-400 text-base sm:text-lg md:text-xl lg:text-2xl xl:text-[30px] leading-none font-extrabold tracking-wide sm:tracking-widest">
                   WARNING
                 </span>
               </div>
@@ -99,21 +100,21 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
                 {shouldShowNG ? (
                   <div className="space-y-0.5 sm:space-y-1">
                     {hasNG && (
-                      <div className="text-[#8B1E1E] font-bold text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl">
+                      <div className="text-red-700 font-bold text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl">
                         🚫 NG DETECTED
                       </div>
                     )}
                     {safetyViolations.map((violation, index) => (
                       <div 
                         key={index} 
-                        className="text-[#8B1E1E] font-bold text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg"
+                        className="text-red-700 font-bold text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg"
                       >
                         ⚠️ {violation}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[#8B1E1E] font-extrabold text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl tracking-wide">
+                  <span className="text-red-700 font-extrabold text-sm sm:text-base md:text-lg lg:text-xl xl:text-2xl tracking-wide">
                     ---
                   </span>
                 )}

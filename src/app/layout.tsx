@@ -1,6 +1,9 @@
 import "./globals.css";
 // import Topbar from "@/components/layout/Topbar";
 import Footer from "@/components/layout/Footer";
+import LayoutWrapper from "@/components/layout/LayoutWrapper";
+import Navbar from "@/components/layout/์Navbar";
+import { CameraProvider } from "@/contexts/CameraContext";
 import { Inter } from "next/font/google";
 
 const inter = Inter({
@@ -12,12 +15,16 @@ const inter = Inter({
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${inter.className} font-sans antialiased h-screen flex flex-col bg-[#0B4A82] overflow-hidden`}>
+      <body className={`${inter.variable} ${inter.className} font-sans antialiased h-screen flex flex-col bg-white overflow-hidden`}>
         {/* <Topbar /> */}
-        <main className="flex-1 bg-[#09304F] flex flex-col min-h-0">
-          {children}
-        </main>
-        <Footer />
+        <CameraProvider>
+          <LayoutWrapper>
+            <main className="flex-1 bg-white flex flex-col min-h-0">
+              {children}
+            </main>
+          </LayoutWrapper>
+        </CameraProvider>
+        {/* <Footer /> */}
       </body>
     </html>
   );

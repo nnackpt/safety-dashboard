@@ -62,38 +62,38 @@ export default function Footer() {
   const overallStatus = getOverallStatus();
 
   return (
-    <footer className="w-full bg-[#2B2B2B] text-white py-2 sm:py-3 text-sm sm:text-base lg:text-lg xl:text-xl">
+    <footer className="w-full bg-gray-50 text-gray-700 py-1.5 sm:py-2 text-xs sm:text-sm">
       <div className="max-w-[1200px] mx-auto px-3 sm:px-4">
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 md:gap-6 lg:gap-8">
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 md:gap-6">
           <div className="flex items-center gap-1">
-            <span className="opacity-80">Camera Status :</span>{" "}
+            <span className="opacity-70">Camera Status :</span>{" "}
             <span 
               className={`font-semibold ${
-                cameraStatusText === "Online" ? "text-green-400" :
-                cameraStatusText === "Partial" ? "text-yellow-400" :
-                "text-red-400"
+                cameraStatusText === "Online" ? "text-green-600" :
+                cameraStatusText === "Partial" ? "text-yellow-600" :
+                "text-red-600"
               }`}
             >
               {cameraStatusText}
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="opacity-80">Network :</span>{" "}
+            <span className="opacity-70">Network :</span>{" "}
             <span 
               className={`font-semibold ${
-                networkStatus === "Stable" ? "text-green-400" : "text-red-400"
+                networkStatus === "Stable" ? "text-green-600" : "text-red-600"
               }`}
             >
               {networkStatus}
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="opacity-80">Status :</span>{" "}
+            <span className="opacity-70">Status :</span>{" "}
             <span 
               className={`font-semibold ${
-                overallStatus === "Ok" ? "text-green-400" :
-                overallStatus === "Warning" ? "text-yellow-400" :
-                "text-red-400"
+                overallStatus === "Ok" ? "text-green-600" :
+                overallStatus === "Warning" ? "text-yellow-600" :
+                "text-red-600"
               }`}
             >
               {overallStatus}

@@ -4,15 +4,20 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import Topbar from "@/components/layout/Topbar";
 import StatusPanel from "@/components/StatusPanel";
 import { Camera, CameraInfo, Detection, DetectionData } from "@/Types/Camera";
+import Navbar from "@/components/layout/์Navbar";
+import SettingsSidebar from "@/components/layout/SettingsSidebar";
+import { useCameraContext } from "@/contexts/CameraContext";
+import { CheckCircle2, XCircle } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
 
 export default function Home() {
+  const { selectedCameraId } = useCameraContext();
+
   const [cameras, setCameras] = useState<Camera[]>([])
   const [error, setError] = useState<string | null>(null)
   const [cameraInfo, setCameraInfo] = useState<{ [key: number]: CameraInfo }>({})
   const [detections, setDetections] = useState<{ [key: number]: DetectionData }>({})
-  const [selectedCameraId, setSelectedCameraId] = useState<number | null>(0)
   const [hasNG, setHasNG] = useState<boolean>(false)
   const [safetyViolations, setSafetyViolations] = useState<string[]>([])
   const [violationTypes, setViolationTypes] = useState<{
@@ -97,7 +102,11 @@ export default function Home() {
         fetch(`${API_URL}/camera/${cam.id}/detections`)
           .then((res) => res.json())
           .then((data: DetectionData) => {
-            setDetections((prev) => ({ ...prev, [cam.id]: data }));
+            setDetections((prev) => {
+              const prevData = prev[cam.id];
+              const hasChanged = JSON.stringify(prevData) !== JSON.stringify(data);
+              return hasChanged ? { ...prev, [cam.id]: data } : prev;
+            });
           })
           .catch((err) => console.error(`Error fetching detections for camera ${cam.id}:`, err));
       });
@@ -118,25 +127,13 @@ export default function Home() {
     }
   }, [])
 
-  const handleCameraSelect = useCallback((cameraName: string) => {
-    console.log("Camera selected:", cameraName);
-    
-    if (cameraName === "All Cameras") {
-      setSelectedCameraId(null); 
-      return;
-    }
-    
-    const match = cameraName.match(/Camera (\d+)/);
-    if (match) {
-      const cameraNumber = parseInt(match[1]);
-      const cameraId = cameraNumber - 1;
-      console.log("Setting camera ID to:", cameraId);
-      setSelectedCameraId(cameraId);
-    }
-  }, []);
-
   const displayCameras = selectedCameraId === null ? [0, 1] : [selectedCameraId];
   const isSingleView = displayCameras.length === 1;
+
+  useEffect(() => {
+    console.log("Current selectedCameraId:", selectedCameraId);
+    console.log("Display cameras:", displayCameras);
+  }, [selectedCameraId, displayCameras]);
 
   // Check for NG detections
   useEffect(() => {
@@ -177,13 +174,23 @@ export default function Home() {
         }
       }
       
-      setHasNG(foundNG)
-      setSafetyViolations(Array.from(violations))
-      setViolationTypes(types)
+      const newViolations = Array.from(violations);
+      
+      setHasNG(prev => prev !== foundNG ? foundNG : prev);
+      
+      setSafetyViolations(prev => {
+        const hasChanged = JSON.stringify(prev) !== JSON.stringify(newViolations);
+        return hasChanged ? newViolations : prev;
+      });
+      
+      setViolationTypes(prev => {
+        const hasChanged = JSON.stringify(prev) !== JSON.stringify(types);
+        return hasChanged ? types : prev;
+      });
     };
     
     checkDetections();
-  }, [detections, displayCameras])
+  }, [detections, displayCameras]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -253,10 +260,19 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex-1 bg-[#09304F] px-2 pt-2 pb-0 flex flex-col overflow-hidden">
-      <Topbar onCameraSelect={handleCameraSelect} />
+    // <div className="flex-1 bg-[#09304F] px-2 pt-2 pb-0 flex flex-col overflow-hidden">
+    <div className="flex-1 bg-[#09304F] flex flex-col overflow-hidden">
+      {/* <Topbar onCameraSelect={handleCameraSelect} /> */}
+      {/* <Navbar /> */}
 
-      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_280px] gap-2 lg:gap-3 flex-1 min-h-0 mt-2">
+      {/* <SettingsSidebar
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        selectedCamera={selectedCamera}
+        onCameraSelect={handleCameraSelect}
+      /> */}
+
+      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_auto] gap-2 lg:gap-3 flex-1 min-h-0 mt-2 lg:pr-1.5 xl:pr-3">
         
         <section className={`bg-[#09304F] border-3 sm:border-4 p-1 pt-0 pb-0 flex flex-col min-h-0 ${
           shouldShowNG ? 'border-red-600' : 'border-green-500'
@@ -283,9 +299,19 @@ export default function Home() {
                   <div className="absolute top-1 sm:top-2 left-1 sm:left-2 bg-black bg-opacity-90 text-white px-2 sm:px-3 py-1 sm:py-2 text-[10px] sm:text-xs rounded z-10">
                     <div className="flex items-center gap-1 sm:gap-2">
                       <span className="font-bold text-xs sm:text-sm">Camera {cameraId + 1}</span>
-                      <span className="text-xs sm:text-sm">
-                        {cameras[cameraId]?.status === "active" ? "🟢" : "🔴"}
-                      </span>
+                      {cameras[cameraId]?.status === "active" ? (
+                        <CheckCircle2
+                          size={16} 
+                          className="text-green-500 fill-green-500/20" 
+                          strokeWidth={2.5}
+                        />
+                      ) : (
+                        <XCircle
+                          size={16} 
+                          className="text-red-500 fill-red-500/20" 
+                          strokeWidth={2.5}
+                        />
+                      )}
                     </div>
                     {cameraInfo[cameraId] && (
                       <div className="text-yellow-300 mt-0.5 sm:mt-1 text-[9px] sm:text-[10px]">
