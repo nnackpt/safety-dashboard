@@ -1,5 +1,6 @@
 "use client";
 
+import { useConfig } from "@/hooks/useConfig";
 import { useEffect, useState } from "react";
 
 interface CameraStatus {
@@ -10,7 +11,8 @@ interface CameraStatus {
 }
 
 export default function Footer() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
+  const { config } = useConfig();
+  const API_URL = config?.API_URL || "http://ath-ma-wd2503:8083/api";
   const [cameras, setCameras] = useState<CameraStatus[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 

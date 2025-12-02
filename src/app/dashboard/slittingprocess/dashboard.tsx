@@ -1,28 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import {
-  PieChart,
-  Pie,
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieLabelRenderProps,
-} from "recharts";
+// import { useRouter } from "next/navigation";
+// import {
+//   PieChart,
+//   Pie,
+//   BarChart,
+//   Bar,
+//   Cell,
+//   XAxis,
+//   YAxis,
+//   CartesianGrid,
+//   Tooltip,
+//   ResponsiveContainer,
+//   PieLabelRenderProps,
+// } from "recharts";
 import { MonthlyDataItem } from "@/Types/Dashboard";
 import dynamic from "next/dynamic";
 import { ApexOptions } from "apexcharts";
+import { useConfig } from "@/hooks/useConfig";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false })
 
 export default function Dashboard() {
-  const router = useRouter();
+  // const router = useRouter();
   
   const [stats, setStats] = useState({
     todayDetections: 0,
@@ -70,12 +71,12 @@ export default function Dashboard() {
     shirt: true,
   });
 
-  const togglePPEVisibility = (key: 'gloves' | 'glasses' | 'shirt') => {
-    setVisiblePPE(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
+  // const togglePPEVisibility = (key: 'gloves' | 'glasses' | 'shirt') => {
+  //   setVisiblePPE(prev => ({
+  //     ...prev,
+  //     [key]: !prev[key]
+  //   }));
+  // };
   
   const [loading, setLoading] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -88,7 +89,8 @@ export default function Dashboard() {
   } | null>(null);
   
   const ruleColors = ["#A855F7", "#F97316", "#FACC15", "#06B6D4"];
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api";
+  const { config } = useConfig();
+  const API_URL = config?.API_URL || "http://ath-ma-wd2503:8083/api";
 
   useEffect(() => {
     const fetchDashboardData = async () => {
