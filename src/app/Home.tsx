@@ -13,7 +13,7 @@ import { useConfig } from "@/hooks/useConfig";
 // const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
 
 export default function Home() {
-  const { config, loading: configLoading } = useConfig();
+  const { config } = useConfig();
   const API_URL = config?.API_URL || "http://ath-ma-wd2503:8083/api";
 
   const { selectedCameraId } = useCameraContext();

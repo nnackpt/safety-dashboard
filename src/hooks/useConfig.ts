@@ -1,25 +1,26 @@
+import { Config, getConfig } from "@/lib/config"
 import { useEffect, useState } from "react"
 
-interface Config {
-    API_URL: string
-}
-
-export const useConfig = () => {
+export function useConfig() {
     const [config, setConfig] = useState<Config | null>(null)
-    const [loading, setLoading] = useState(true)
+    // const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<Error | null>(null)
 
     useEffect(() => {
-        fetch('/config/json')
-            .then(res => res.json())
-            .then(data => {
-                setConfig(data)
-                setLoading(false)
+        getConfig()
+            .then((cfg) => {
+                setConfig(cfg)
+                // setLoading(false)
             })
-            .catch(err => {
-                console.error("Failed to load config:", err)
-                setLoading(false)
+            .catch((err) => {
+                setError(err)
+                // setLoading(false)
+                // Fallback
+                setConfig({
+                    API_URL: "http://ath-ma-wd2503:8083/api"
+                })
             })
     }, [])
 
-    return { config, loading }
+    return { config, error }
 }
