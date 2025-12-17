@@ -1,20 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-// import Topbar from "@/components/layout/Topbar";
 import StatusPanel from "@/components/StatusPanel";
 import { Camera, CameraInfo, Detection, DetectionData } from "@/Types/Camera";
-// import Navbar from "@/components/layout/์Navbar";
-// import SettingsSidebar from "@/components/layout/SettingsSidebar";
 import { useCameraContext } from "@/contexts/CameraContext";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
 
-// const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://ath-ma-wd2503:8083/api"
 
-export default function Home() {
+export default function Warehouse() {
   const { config } = useConfig();
-  const API_URL = config?.Slitting.API_URL || "http://ath-ma-wd2503:8083/api";
+  const API_URL = config?.Warehouse.API_URL || "http://localhost:8084/api";
 
   const { selectedCameraId } = useCameraContext();
 
@@ -330,7 +326,7 @@ export default function Home() {
         </section>
 
         <StatusPanel
-          mode="slitting"
+          mode="warehouse"
           hasNG={hasNG}
           safetyViolations={safetyViolations}
           violationTypes={violationTypes}

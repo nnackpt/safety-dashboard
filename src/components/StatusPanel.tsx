@@ -1,6 +1,7 @@
 "use client";
 
 interface StatusPanelProps {
+  mode: "slitting" | "warehouse";
   hasNG: boolean;
   safetyViolations: string[];
   violationTypes: {
@@ -11,8 +12,23 @@ interface StatusPanelProps {
   };
 }
 
-export default function StatusPanel({ hasNG, safetyViolations, violationTypes }: StatusPanelProps) {
+export default function StatusPanel({ mode, hasNG, safetyViolations, violationTypes }: StatusPanelProps) {
   const shouldShowNG = hasNG || safetyViolations.length > 0;
+  const ppeConfig = {
+    slitting: [
+      { src: "/tcs_slitting/safety-footerwear.png", alt: "Safety Footwear", violationType: "shoes" },
+      { src: "/tcs_slitting/wear-goggle.png", alt: "Wear Goggle", violationType: "glasses" },
+      { src: "/tcs_slitting/wear-hand-protection.png", alt: "Wear Hand Protection", violationType: "glove" },
+      { src: "/tcs_slitting/wear-vest.png", alt: "Wear Vest", violationType: "shirt" },
+    ],
+    warehouse: [
+      { src: "/tcs_warehouse/helmet.png", alt: "Helmet", violationType: "helmet" },
+      { src: "/tcs_warehouse/shoes.png", alt: "Safety Shoes", violationType: "shoes" },
+      { src: "/tcs_warehouse/vest.png", alt: "Safety Vest", violationType: "vest" },
+    ],
+  };
+
+  const currentPPE = ppeConfig[mode];
 
   return (
     <aside className="h-auto lg:h-full lg:w-64 xl:w-72 min-h-0 flex flex-col gap-1 sm:gap-2 lg:gap-3">
@@ -56,14 +72,31 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
         </h3>
 
         {/* PPE Icons */}
-        <div className="mt-3 grid grid-cols-4 gap-2 lg:gap-3 justify-items-center">
-        {[
-          { src: "safety-footerwear.png", alt: "Safety Footwear", violationType: "shoe" },
-          { src: "wear-goggle.png", alt: "Wear Goggle", violationType: "glasses" },
-          { src: "wear-hand-protection.png", alt: "Wear Hand Protection", violationType: "glove" },
-          { src: "wear-vest.png", alt: "Wear Vest", violationType: "shirt" },
-        ].map(({ src, alt, violationType }) => {
+        <div className={`mt-3 grid gap-2 lg:gap-3 justify-items-center ${
+          mode === "slitting" 
+            ? "grid-cols-2 sm:grid-cols-4" 
+            : "grid-cols-3"
+        }`}>
+        {currentPPE.map(({ src, alt, violationType }) => {
           const hasViolation = violationTypes[violationType as keyof typeof violationTypes];
+
+          // Style for Warehouse
+          if (mode === "warehouse") {
+            return (
+              <div
+                key={src}
+                className={`w-14 sm:w-16 lg:w-20 xl:w-24 transition-transform duration-200 ease-out hover:-translate-y-0.5
+                  ${hasViolation ? "ring-4 ring-red-500 rounded-full" : ""}`}
+              >
+                <div className="w-full aspect-square flex items-center justify-center p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt={alt} className="w-full h-full object-contain block" />
+                </div>
+              </div>
+            )
+          }
+
+          // Style for Slitting
           return (
             <div
               key={src}
@@ -88,7 +121,7 @@ export default function StatusPanel({ hasNG, safetyViolations, violationTypes }:
               <div className="flex items-center justify-center gap-0.5 sm:gap-1 bg-black rounded-[4px] sm:rounded-[6px] md:rounded-[8px] px-2 sm:px-3 md:px-4 lg:px-5 py-1 sm:py-1.5 lg:py-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img 
-                  src="warning.png" 
+                  src="/warning.png" 
                   alt="Warning" 
                   className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 xl:w-10 xl:h-10 object-contain" 
                 />

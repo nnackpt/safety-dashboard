@@ -90,7 +90,7 @@ export default function Dashboard() {
   
   const ruleColors = ["#A855F7", "#F97316", "#FACC15", "#06B6D4"];
   const { config } = useConfig();
-  const API_URL = config?.API_URL || "http://ath-ma-wd2503:8083/api";
+  const API_URL = config?.Slitting.API_URL || "http://ath-ma-wd2503:8083/api";
 
   useEffect(() => {
     const fetchDashboardData = async () => {

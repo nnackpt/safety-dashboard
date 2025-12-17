@@ -1,7 +1,12 @@
 let cachedConfig: Config | null = null
 
 export interface Config {
-    API_URL: string
+    Slitting: {
+        API_URL: string
+    }
+    Warehouse: {
+        API_URL: string
+    }
 }
 
 export async function getConfig(): Promise<Config> {
@@ -21,7 +26,12 @@ export async function getConfig(): Promise<Config> {
     } catch (err) {
         console.error("Failed to load config", err)
         return {
-            API_URL: "http://ath-ma-wd2503:8083/api"
+            Slitting: {
+                API_URL: "http://ath-ma-wd2503:8083/api"
+            },
+            Warehouse: {
+                API_URL: "http://localhost:8084/api"
+            }
         }
     }
 }

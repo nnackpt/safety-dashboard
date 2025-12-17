@@ -21,6 +21,7 @@ export default function Navbar({ onSettingsClick }: NavbarProps) {
   const router = useRouter();
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pageTitle, setPageTitle] = useState("Slitting Process");
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,7 +43,10 @@ export default function Navbar({ onSettingsClick }: NavbarProps) {
     {
       label: "Home",
       icon: <Home size={18} />,
-      path: "/",
+      submenu: [
+        { label: "Slitting Process", path: "/" },
+        { label: "Warehouse", path: "/warehouse" },
+      ],
     },
     {
       label: "Dashboard",
@@ -71,9 +75,10 @@ export default function Navbar({ onSettingsClick }: NavbarProps) {
     }
   };
 
-  const handleSubmenuClick = (path: string) => {
+  const handleSubmenuClick = (path: string, label: string) => {
     router.push(path);
     setOpenDropdown(null);
+    setPageTitle(label)
   };
 
   return (
@@ -83,7 +88,7 @@ export default function Navbar({ onSettingsClick }: NavbarProps) {
           <img src="/logo.png" alt="Autoliv" className="h-6 sm:h-8" />
         </div>
         <div className="flex items-center gap-4">
-          <h1 className="text-lg sm:text-xl font-bold text-white">Slitting Process</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-white">{pageTitle}</h1>
         </div>
       </div>
 
@@ -123,7 +128,7 @@ export default function Navbar({ onSettingsClick }: NavbarProps) {
                       {item.submenu.map((subItem) => (
                         <button
                           key={subItem.label}
-                          onClick={() => handleSubmenuClick(subItem.path)}
+                          onClick={() => handleSubmenuClick(subItem.path, subItem.label)}
                           className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors first:rounded-t-lg last:rounded-b-lg cursor-pointer"
                         >
                           {subItem.label}

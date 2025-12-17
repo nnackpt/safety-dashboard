@@ -12,7 +12,7 @@ interface CameraStatus {
 
 export default function Footer() {
   const { config } = useConfig();
-  const API_URL = config?.API_URL || "http://ath-ma-wd2503:8083/api";
+  const API_URL = config?.Slitting.API_URL || "http://ath-ma-wd2503:8083/api";
   const [cameras, setCameras] = useState<CameraStatus[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 

@@ -17,7 +17,12 @@ export function useConfig() {
                 // setLoading(false)
                 // Fallback
                 setConfig({
-                    API_URL: "http://ath-ma-wd2503:8083/api"
+                    Slitting: {
+                        API_URL: "http://ath-ma-wd2503:8083/api"
+                    },
+                    Warehouse: {
+                        API_URL: "http://localhost:8084/api"
+                    }
                 })
             })
     }, [])
