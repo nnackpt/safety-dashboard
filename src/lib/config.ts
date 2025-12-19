@@ -30,7 +30,7 @@ export async function getConfig(): Promise<Config> {
                 API_URL: "http://ath-ma-wd2503:8083/api"
             },
             Warehouse: {
-                API_URL: "http://localhost:8084/api"
+                API_URL: "http://localhost:8084"
             }
         }
     }

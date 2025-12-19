@@ -10,7 +10,7 @@ import { useConfig } from "@/hooks/useConfig";
 
 export default function Warehouse() {
   const { config } = useConfig();
-  const API_URL = config?.Warehouse.API_URL || "http://localhost:8084/api";
+  const API_URL = config?.Warehouse.API_URL || "http://localhost:8084";
 
   const { selectedCameraId } = useCameraContext();
 
@@ -21,19 +21,16 @@ export default function Warehouse() {
   const [hasNG, setHasNG] = useState<boolean>(false)
   const [safetyViolations, setSafetyViolations] = useState<string[]>([])
   const [violationTypes, setViolationTypes] = useState<{
-    glove: boolean;
-    shoe: boolean;
-    glasses: boolean;
-    shirt: boolean;
+    helmet: boolean
+    shoes: boolean
+    vest: boolean
   }>({
-    glove: false,
-    shoe: false,
-    glasses: false,
-    shirt: false
+    helmet: false,
+    shoes: false,
+    vest: false
   })
-  const shouldShowNG = hasNG || safetyViolations.length > 0
 
-  const [audioEnabled, setAudioEnabled] = useState(true)
+  // const [audioEnabled, setAudioEnabled] = useState(true)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlayingAlert, setIsPlayingAlert] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
@@ -41,6 +38,9 @@ export default function Warehouse() {
   const [streamReloadKey, setStreamReloadKey] = useState<{ [key: number]: number }>({})
   const streamErrorCount = useRef<{ [key: number]: number }>({})
   const streamLoadSuccess = useRef<{ [key: number]: boolean }>({})
+  // const [testMode, setTestMode] = useState(false)
+  const shouldShowNG = hasNG || safetyViolations.length > 0
+  const [audioInitialized, setAudioInitialized] = useState(false)
 
   // Wake Lock: Keep screen awake
   useEffect(() => {
@@ -79,6 +79,7 @@ export default function Warehouse() {
     fetch(`${API_URL}/cameras`)
       .then((res) => res.json())
       .then((data) => {
+        console.log("📹 Cameras data:", data.cameras)
         setCameras(data.cameras || []);
         (data.cameras || []).forEach((cam: Camera) => {
           fetch(`${API_URL}/camera/${cam.id}`)
@@ -97,35 +98,90 @@ export default function Warehouse() {
 
   // Poll detection results every 500ms
   useEffect(() => {
+    console.log("🔄 Setting up detection polling with API_URL:", API_URL);
+    
     const interval = setInterval(() => {
       cameras.forEach((cam) => {
-        fetch(`${API_URL}/camera/${cam.id}/detections`)
-          .then((res) => res.json())
+        const detectionUrl = `${API_URL}/camera/${cam.id}/detections`;
+        console.log(`📡 Fetching from: ${detectionUrl}`);
+        
+        fetch(detectionUrl)
+          .then((res) => {
+            console.log(`✅ Response status for camera ${cam.id}:`, res.status);
+            return res.json();
+          })
           .then((data: DetectionData) => {
+            console.log(`📦 [Camera ${cam.id}] Raw API Response:`, data);
+            
             setDetections((prev) => {
-              const prevData = prev[cam.id];
-              const hasChanged = JSON.stringify(prevData) !== JSON.stringify(data);
-              return hasChanged ? { ...prev, [cam.id]: data } : prev;
+              const updated = { ...prev, [cam.id]: data };
+              console.log(`💾 Updated detections state:`, updated);
+              return updated;
             });
           })
-          .catch((err) => console.error(`Error fetching detections for camera ${cam.id}:`, err));
+          .catch((err) => {
+            console.error(`❌ Error fetching camera ${cam.id}:`, err);
+          });
       });
     }, 500);
 
-    return () => clearInterval(interval);
-  }, [cameras]);
+    return () => {
+      console.log("🛑 Clearing detection polling interval");
+      clearInterval(interval);
+    };
+  }, [cameras, API_URL])
 
   useEffect(() => {
-    audioRef.current = new Audio('/emergency-alarmsiren-type.mp3')
-    audioRef.current.volume = 0.8
+    const audio = new Audio('/emergency-alarmsiren-type.mp3');
+    audio.volume = 0.8;
+    audio.loop = true;
+
+    audio.addEventListener("canplaythrough", () => {
+      console.log("✅ Audio file loaded")
+    })
+
+    audio.addEventListener("error", (e) => {
+      console.error("❌ Audio file error:", e)
+    })
+
+    audioRef.current = audio;
+    audio.load();
     
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
+        audioRef.current.src = ""
         audioRef.current = null
       }
     }
   }, [])
+
+  useEffect(() => {
+    const initAudio = () => {
+      if (!audioInitialized && audioRef.current) {
+        audioRef.current.play().then(() => {
+          audioRef.current!.pause()
+          audioRef.current!.currentTime = 0
+          setAudioInitialized(true)
+          console.log("✅ Audio initialized")
+        }).catch(() => {
+          console.log("⚠️ Audio requires user interaction")
+        })
+      }
+    }
+
+    // Try initialize on first click/touch
+    const events = ['click', 'touchstart', 'keydown', 'mousemove'];
+    events.forEach(event => {
+      document.addEventListener(event, initAudio, { once: true });
+    });
+
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, initAudio)
+      })
+    }
+  }, [audioInitialized])
 
   const displayCameras = selectedCameraId === null ? [0, 1] : [selectedCameraId];
   const isSingleView = displayCameras.length === 1;
@@ -138,72 +194,97 @@ export default function Warehouse() {
   // Check for NG detections
   useEffect(() => {
     const checkDetections = () => {
+      console.log("🔍 CHECK DETECTIONS");
+      
       let foundNG = false;
-      const violations = new Set<string>()
+      const violations = new Set<string>();
       const types = {
-        glove: false,
-        shoe: false,
-        glasses: false,
-        shirt: false
+        helmet: false,
+        shoes: false,
+        vest: false
       };
       
       for (const cameraId of displayCameras) {
-        const detection = detections[cameraId]
+        const detection = detections[cameraId];
+        console.log(`[Camera ${cameraId}]:`, detection);
+        
         if (detection?.detections) {
-          detection.detections.forEach((d: Detection) => {
-            const classifiedName = (d.classified_as || d.class).trim().toLowerCase();
+          console.log(` Detections: ${detection.detections.length}`);
+          
+          detection.detections.forEach((d: Detection, idx: number) => {
+            console.log(`\n  [${idx}]:`, {
+              class: d.class,
+              classified_as: d.classified_as,
+              is_ng: d.is_ng
+            });
             
-            if (classifiedName === "ng") {
+            // ⭐ เช็ค is_ng ก่อน
+            if (d.is_ng === true) {
               foundNG = true;
+              console.log("    ✅ is_ng = true");
             }
             
-            if (classifiedName === "non-safety-glove") {
-              violations.add("Missing Safety Gloves")
-              types.glove = true;
-            } else if (classifiedName === "non-safety-shoe") {
-              violations.add("Missing Safety Shoes")
-              types.shoe = true;
-            } else if (classifiedName === "non-safety-glasses") {
-              violations.add("Missing Safety Glasses")
-              types.glasses = true;
-            } else if (classifiedName === "non-safety-shirt") {
-              violations.add("Missing Safety Shirt")
-              types.shirt = true;
+            const classifiedName = (d.classified_as || d.class || "").trim().toLowerCase();
+            
+            if (classifiedName === "non-safety-helmet") {
+              foundNG = true;
+              violations.add("Missing Safety Helmet");
+              types.helmet = true;
+            } else if (classifiedName === "non-safety-shoes") {
+              foundNG = true;
+              violations.add("Missing Safety Shoes");
+              types.shoes = true;
+            } else if (classifiedName === "non-safety-vest") {
+              foundNG = true;
+              violations.add("Missing Safety Vest");
+              types.vest = true;
             }
-          })
+          });
         }
       }
       
       const newViolations = Array.from(violations);
       
-      setHasNG(prev => prev !== foundNG ? foundNG : prev);
-      
-      setSafetyViolations(prev => {
-        const hasChanged = JSON.stringify(prev) !== JSON.stringify(newViolations);
-        return hasChanged ? newViolations : prev;
+      console.log("\n📊 Results:", {
+        foundNG,
+        violations: newViolations
       });
       
-      setViolationTypes(prev => {
-        const hasChanged = JSON.stringify(prev) !== JSON.stringify(types);
-        return hasChanged ? types : prev;
-      });
+      setHasNG(foundNG);
+      setSafetyViolations(newViolations);
+      setViolationTypes(types);
     };
     
     checkDetections();
   }, [detections, displayCameras]);
 
   useEffect(() => {
+    console.log("Audio Effect:", {
+      shouldShowNG,
+      isPlayingAlert,
+      audioInitialized,
+      audioRefExists: !!audioRef.current
+    })
     let timeoutId: NodeJS.Timeout;
     
-    if (shouldShowNG && audioEnabled && !isPlayingAlert) {
+    if (shouldShowNG && !isPlayingAlert && audioInitialized) {
       if (audioRef.current) {
+        audioRef.current.currentTime = 0
         audioRef.current.loop = true
         audioRef.current.play()
           .then(() => {
             setIsPlayingAlert(true)
-            console.log("🔊 Alert sound started")
+            console.log("🔊 Alert playing")
           })
-          .catch(err => console.log("Audio play failed:", err))
+          .catch(err => {
+            console.error("Play failed:", err)
+            setTimeout(() => {
+              audioRef.current?.play()
+                .then(() => setIsPlayingAlert(true))
+                .catch(e => console.error("Retry failed:", e))
+            }, 500);
+          }
+        )
       }
     } else if (!shouldShowNG && isPlayingAlert) {
       timeoutId = setTimeout(() => {
@@ -211,10 +292,10 @@ export default function Warehouse() {
           audioRef.current.pause()
           audioRef.current.currentTime = 0
           setIsPlayingAlert(false)
-          console.log("🔇 Alert sound stopped")
+          console.log("🔇 Alert stopped")
         }
       }, 2000)
-    } else if (!audioEnabled && isPlayingAlert) {
+    } else if (isPlayingAlert) {
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
@@ -225,7 +306,7 @@ export default function Warehouse() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [shouldShowNG, audioEnabled, isPlayingAlert])
+  }, [shouldShowNG, isPlayingAlert, audioInitialized])
 
   const getStreamUrl = (cameraId: number) => {
     const key = streamReloadKey[cameraId] || 0;
@@ -265,14 +346,17 @@ export default function Warehouse() {
       {/* <Topbar onCameraSelect={handleCameraSelect} /> */}
       {/* <Navbar /> */}
 
-      {/* <SettingsSidebar
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        selectedCamera={selectedCamera}
-        onCameraSelect={handleCameraSelect}
-      /> */}
-
       <div className="flex flex-col lg:grid lg:grid-cols-[1fr_auto] gap-2 lg:gap-3 flex-1 min-h-0 mt-2 lg:pr-1.5 xl:pr-3">
+        {/* <button
+          onClick={() => setTestMode(!testMode)}
+          className={`fixed bottom-24 right-4 z-50 px-4 py-2 rounded-lg font-bold shadow-lg transition-all
+            ${testMode 
+              ? 'bg-red-500 hover:bg-red-600 text-white' 
+              : 'bg-gray-700 hover:bg-gray-800 text-white'
+            }`}
+        >
+          {testMode ? '🔴 Test ON' : '⚪ Test OFF'}
+        </button> */}
         
         <section className={`bg-[#09304F] border-3 sm:border-4 p-1 pt-0 pb-0 flex flex-col min-h-0 ${
           shouldShowNG ? 'border-red-600' : 'border-green-500'

@@ -5,10 +5,13 @@ interface StatusPanelProps {
   hasNG: boolean;
   safetyViolations: string[];
   violationTypes: {
-    glove: boolean;
-    shoe: boolean;
-    glasses: boolean;
-    shirt: boolean;
+    glove?: boolean;
+    shoe?: boolean;
+    shoes?: boolean;
+    glasses?: boolean;
+    shirt?: boolean;
+    helmet?: boolean;
+    vest?: boolean;
   };
 }
 

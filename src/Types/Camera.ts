@@ -19,6 +19,7 @@ export interface Detection {
   detection_conf: number;
   classification_conf: number | null;
   bbox: number[];
+  is_ng?: boolean
 }
 
 export interface DetectionData {
